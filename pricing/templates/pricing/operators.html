@@ -4,15 +4,15 @@
 <h1>Операторы и прайсы</h1>
 <p class="muted">Опубликованные версии прайсов. Новая загрузка того же оператора и того же охвата отправляет прежнюю в архив.</p>
 <div class="table-wrap"><table class="data">
-  <thead><tr><th>Оператор</th><th>Прайс</th><th>Охват</th><th>Действует с</th><th>Загружен</th><th>Площадок</th><th>Строк суши</th><th>Строк моря</th><th>Тип</th></tr></thead>
+  <thead><tr><th class="left">Оператор</th><th class="left">Прайс</th><th class="left">Охват</th><th>Действует с</th><th>Загружен</th><th>Площадок</th><th>Строк суши</th><th>Строк моря</th><th class="left">Тип</th></tr></thead>
   <tbody>
   {% for pl in lists %}
     <tr>
-      <td><b>{{ pl.provider.name }}</b></td>
+      <td class="label">{{ pl.provider.name }}</td>
       <td>{{ pl.title }}</td>
       <td>{{ pl.scope }}</td>
-      <td>{{ pl.valid_from|date:"d.m.Y"|default:"—" }}</td>
-      <td>{{ pl.imported_at|date:"d.m.Y H:i" }}</td>
+      <td class="num">{{ pl.valid_from|date:"d.m.Y"|default:"—" }}</td>
+      <td class="num">{{ pl.imported_at|date:"d.m.Y H:i" }}</td>
       <td class="num">{{ pl.yards }}</td>
       <td class="num">{{ pl.land }}</td>
       <td class="num">{{ pl.sea }}</td>

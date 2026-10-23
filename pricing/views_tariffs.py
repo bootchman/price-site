@@ -10,6 +10,7 @@ from .models import Charge, DestinationPort, ExchangeRate, PriceList, Provider, 
 from .tariffs import CATEGORIES, CONTAINER_SLOTS, effective_charges, manual_list
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
+TERMINAL_ORDER = ["SAV", "ELZ", "NYC", "HOU", "LAX", "IND", "MTL", "MIA", "CHI", "ORF", "SEA", "YTO", "HNL", "ANC"]
 
 
 def _decimal(value):
@@ -61,12 +62,21 @@ def provider_page(request, pk):
     charges = Charge.objects.filter(price_list__in=published).select_related("price_list", "to_port", "vehicle_type") \
         .order_by("category", "price_list__is_manual")
     manual_cats = {c.category for c in charges if c.price_list.is_manual}
+    # Матрица как в прайсе Cargoloop: строки — порт получения и тип машины, колонки — склады
+    order = {code: i for i, code in enumerate(TERMINAL_ORDER)}
+    columns = sorted({r.from_terminal for r in effective.values()}, key=lambda t: (order.get(t.code, 99), t.name))
+    row_keys = sorted({(r.to_port, r.vehicle_type) for r in effective.values()}, key=lambda k: (k[0].sort, k[1].sort))
+    matrix = [
+        {"port": port, "vtype": vt, "cells": [effective.get((t.id, port.id, vt.id)) for t in columns]}
+        for port, vt in row_keys
+    ]
+    manual_sea = [r for r in effective.values() if r.price_list.is_manual]
     return render(request, "pricing/tariff_provider.html", {
-        "provider": provider,
-        "sea": sorted(effective.values(), key=lambda r: (r.to_port.sort, r.from_terminal.group, r.vehicle_type.sort)),
+        "provider": provider, "columns": columns, "matrix": matrix,
+        "manual_sea": sorted(manual_sea, key=lambda r: (r.to_port.sort, order.get(r.from_terminal.code, 99), r.vehicle_type.sort)),
         "overridden": overridden,
         "charges": [(c, c.price_list.is_manual or c.category not in manual_cats) for c in charges],
-        "terminals": Terminal.objects.all(), "ports": DestinationPort.objects.all(),
+        "terminals": sorted(Terminal.objects.all(), key=lambda t: (order.get(t.code, 99), t.name)), "ports": DestinationPort.objects.all(),
         "vtypes": VehicleType.objects.all(), "categories": Charge.CATEGORY_CHOICES,
         "applies": Charge.APPLIES_ON_CHOICES, "history": provider.tariff_changes.select_related("user")[:30],
     })

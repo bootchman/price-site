@@ -37,11 +37,11 @@
     {% endif %}
     <p class="muted small">Итого — полная стоимость за машину: суша + море + услуги + material fee + экспедирование{% if eur %} (EUR по курсу {{ eur.eur_usd }}){% endif %}. Цифры из прайсов и из вкладки «Тарифы операторов».</p>
     <div class="table-wrap"><table class="data">
-      <thead><tr><th>#</th><th>Итого</th><th>Суша</th><th>Склад</th><th>Море</th><th>Прочие расходы</th><th>Примечания</th></tr></thead>
+      <thead><tr><th>#</th><th>Итого, за 1 машину</th><th class="left">Суша</th><th class="left">Склад</th><th class="left">Море</th><th class="left">Прочие расходы</th><th class="left">Примечания</th></tr></thead>
       <tbody>
       {% for o in full %}
         <tr class="{% if forloop.first %}best{% endif %}">
-          <td>{{ forloop.counter }}</td>
+          <td class="num">{{ forloop.counter }}</td>
           <td class="num"><b>${{ o.total|floatformat:0 }}</b><br><span class="muted small">суша + море ${{ o.base_total|floatformat:0 }}</span></td>
           <td>{{ o.land.price_list.provider.name }} <span class="num">${{ o.land.amount|floatformat:0 }}</span>{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
           <td><span class="term term-{{ o.land.to_terminal.code }}">{{ o.land.to_terminal.name }}</span></td>
@@ -63,7 +63,7 @@
   {% if land_only %}
     <h3 class="section">Суша без морской ставки до {{ port.name }}</h3>
     <div class="table-wrap"><table class="data">
-      <thead><tr><th>Оператор</th><th>Склад</th><th>Суша</th><th></th></tr></thead>
+      <thead><tr><th class="left">Оператор</th><th class="left">Склад</th><th>Суша</th><th class="left"></th></tr></thead>
       <tbody>{% for r in land_only %}
         <tr><td>{{ r.price_list.provider.name }}</td><td><span class="term term-{{ r.to_terminal.code }}">{{ r.to_terminal.name }}</span></td><td class="num">${{ r.amount|floatformat:0 }}</td>
         <td class="muted small">{% if r.is_preferred %}предпочт. склад{% endif %}{% if r.is_estimate %} {{ r.note }}{% endif %}</td></tr>
