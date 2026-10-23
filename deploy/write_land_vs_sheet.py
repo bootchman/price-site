@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Создать Google Таблицу «Суша: VS против конкурентов» из JSON команды export_land_vs (запускает root).
 
-  python3 write_land_vs_sheet.py land_vs.json
-Печатает ссылку на новую таблицу. Доступ к таблице выдаёт владелец вручную.
+  python3 write_land_vs_sheet.py land_vs.json [ID существующей таблицы]
+Без ID создаёт новую таблицу, с ID — пересоздаёт листы в ней (ссылка не меняется). Печатает ссылку. Доступ к таблице выдаёт владелец вручную.
 """
 import json
 import os
@@ -52,7 +52,7 @@ def cell(value=None, bold=False, fg=None, bg=None, money=False, align=None, wrap
 def auction_sheet(data, auction, sheet_id):
     ports, ops = data["ports"], data["operators"]
     rivals = [o for o in ops if o != "VS Brothers"]
-    block = ["VS полная цена"] + ["VS Brothers"] + rivals + ["Лучший конкурент", "VS дороже на"]
+    block = ["VS Brothers"] + rivals + ["Лучший конкурент", "VS дороже на"]
     width = len(block)
     row1 = [cell("Площадка", bold=True), cell("Город", bold=True)]
     row2 = [cell(f"{auction}: площадка", bold=True, wrap=True), cell("", bold=True)]
@@ -63,10 +63,7 @@ def auction_sheet(data, auction, sheet_id):
                 [cell(bg=PORT_COLORS[g]) for _ in range(width - 1)]
         merges.append({"mergeCells": {"mergeType": "MERGE_ALL", "range": {
             "sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": start, "endColumnIndex": start + width}}})
-        sea = data["vs_sea"].get(g)
-        labels = [f"VS полная (калькулятор, море ${sea:.0f})" if sea else "VS полная"] + \
-                 [f"{o} (корр. {c:+.0f})" if (c := dict(data["corrections"]).get(o)) else o for o in ["VS Brothers"] + rivals] + \
-                 ["Лучший конкурент", "VS дороже лучшего на"]
+        labels = ["VS Brothers"] + rivals + ["Лучший конкурент", "VS дороже лучшего на"]
         row2 += [cell(t, bold=True, wrap=True, align="CENTER", bg="#f3f6f8") for t in labels]
     rows = [{"values": row1}, {"values": row2}]
     for r in data["auctions"][auction]:
@@ -80,7 +77,6 @@ def auction_sheet(data, auction, sheet_id):
             present = [v for v in prices.values() if v is not None]
             mn = min(present) if len(present) >= 2 else None
             mx = max(present) if len(present) >= 2 else None
-            values.append(cell(p["vs_full"], money=True, fg=GREY, align="CENTER"))
             for o in ["VS Brothers"] + rivals:
                 v = prices.get(o)
                 bg = fg = None
@@ -119,15 +115,13 @@ def auction_sheet(data, auction, sheet_id):
 
 
 def summary_sheet(data, sheet_id):
-    corr = ", ".join(f"{n} {c:+.0f} $" for n, c in data["corrections"]) or "нет"
     sea = ", ".join(f"{name} ${data['vs_sea'][g]:.0f}" for g, name in data["ports"] if g in data["vs_sea"])
     rows = [
         [cell("Суша: VS Brothers против конкурентов", bold=True)],
         [cell(f"Источник: price.interalex.pro, {data['generated']}. Тип машины: {data['vehicle_type']}. "
               "Сравнивается цена суши VS с самой дешёвой ценой конкурента на той же площадке до того же склада.",
               fg=GREY)],
-        [cell(f"Суша VS = полная цена калькулятора VS до Клайпеды − море VS ({sea}). "
-              f"Коррекция суши операторов: {corr}.", fg=GREY)],
+        [cell(f"Суша VS = полная цена калькулятора VS до Клайпеды − море VS ({sea}).", fg=GREY)],
         [],
         [cell(t, bold=True, wrap=True, align="CENTER", bg="#f3f6f8") for t in
          ["Аукцион", "Склад", "Площадок, где есть VS и конкурент", "VS дороже лучшего конкурента",
@@ -154,24 +148,35 @@ def summary_sheet(data, sheet_id):
     ]
 
 
-def main(path):
+def main(path, into=None):
     data = json.load(open(path, encoding="utf-8"))
     token = access_token()
     auctions = list(data["auctions"])
     sheets = [{"properties": {"sheetId": 1, "title": "Сводка"}}] + [
         {"properties": {"sheetId": 10 + i, "title": a,
-                        "gridProperties": {"rowCount": len(data["auctions"][a]) + 5, "columnCount": 2 + 8 * len(data["ports"]) + 2}}}
+                        "gridProperties": {"rowCount": len(data["auctions"][a]) + 5, "columnCount": 2 + 7 * len(data["ports"]) + 2}}}
         for i, a in enumerate(auctions)]
-    created = call(token, "POST", API, {
-        "properties": {"title": f"Суша: VS против конкурентов ({data['generated'][:10]})", "locale": "en_US"},
-        "sheets": sheets})
-    sid = created["spreadsheetId"]
+    if into:  # пересоздать листы в существующей таблице — ссылка остаётся прежней
+        sid = into
+        old = call(token, "GET", f"{API}/{sid}?fields=sheets.properties.sheetId")["sheets"]
+        reqs = [{"addSheet": {"properties": {"sheetId": 999, "title": "tmp"}}}]
+        reqs += [{"deleteSheet": {"sheetId": s["properties"]["sheetId"]}} for s in old]
+        reqs += [{"addSheet": s} for s in sheets] + [{"deleteSheet": {"sheetId": 999}}]
+        reqs.append({"updateSpreadsheetProperties": {
+            "properties": {"title": f"Суша: VS против конкурентов ({data['generated'][:10]})"}, "fields": "title"}})
+        call(token, "POST", f"{API}/{sid}:batchUpdate", {"requests": reqs})
+        url = f"https://docs.google.com/spreadsheets/d/{sid}/edit"
+    else:
+        created = call(token, "POST", API, {
+            "properties": {"title": f"Суша: VS против конкурентов ({data['generated'][:10]})", "locale": "en_US"},
+            "sheets": sheets})
+        sid, url = created["spreadsheetId"], created["spreadsheetUrl"]
     requests = summary_sheet(data, 1)
     for i, a in enumerate(auctions):
         requests += auction_sheet(data, a, 10 + i)
     call(token, "POST", f"{API}/{sid}:batchUpdate", {"requests": requests})
-    print(created["spreadsheetUrl"])
+    print(url)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
