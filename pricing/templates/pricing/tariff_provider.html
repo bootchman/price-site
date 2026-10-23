@@ -78,7 +78,7 @@
 <h2 class="section">История изменений</h2>
 <div class="table-wrap"><table class="data">
   <tbody>{% for h in history %}
-    <tr><td class="num">{{ h.at|date:"d.m.Y H:i" }}</td><td>{{ h.user.telegram.full_name|default:h.user.username|default:"—" }}</td><td class="small">{{ h.description }}</td></tr>
+    <tr><td class="num">{{ h.at|date:"d.m.Y H:i" }}</td><td>{% if h.user %}{{ h.user.telegram.full_name|default:h.user.username }}{% else %}система{% endif %}</td><td class="small">{{ h.description }}</td></tr>
   {% empty %}<tr><td class="muted">Изменений пока не было.</td></tr>{% endfor %}</tbody>
 </table></div>
 <script>

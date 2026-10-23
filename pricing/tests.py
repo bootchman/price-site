@@ -9,7 +9,7 @@ import openpyxl
 from django.test import TestCase
 
 from pricing.importers import providers
-from pricing.models import Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, Terminal, VehicleType, Yard
+from pricing.models import Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType, Yard
 from pricing.reference import name_key
 from pricing.routes import find_routes
 
@@ -345,6 +345,7 @@ class TariffTests(TestCase):
         self.assertEqual(cl.by_container, {})
 
     def test_pages_render(self):
+        TariffChange.objects.create(provider=self.vs, user=None, action="море", description="внесено системой")
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)
         self.assertEqual(self.client.get(f"/tariffs/{self.vs.pk}/").status_code, 200)
         resp = self.client.get("/", {"auction": self.yard.auction_id, "yard": self.yard.id, "vt": "sedan", "port": "KLJ"})
