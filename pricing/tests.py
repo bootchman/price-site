@@ -14,6 +14,9 @@ from pricing.reference import name_key
 from pricing.routes import find_routes
 
 TMP = Path(tempfile.mkdtemp())
+from accounts.access import Entry  # noqa: E402
+
+FULL_ENTRY = Entry("380000000000", "", 2, "Суперадмин")
 
 CARGOLOOP_HTML = """
 <html><body><p>Valid from October 1st, 2026 Local Transportation Prices</p>
@@ -214,7 +217,7 @@ class ImportAndRouteTests(TestCase):
         TelegramProfile.objects.create(user=user, telegram_id=1, phone="380000000000")
         self.client.force_login(user)
         yard = Yard.objects.get()
-        with mock.patch("accounts.middleware.is_allowed", return_value=True):
+        with mock.patch("accounts.middleware.find_entry", return_value=FULL_ENTRY):
             resp = self.client.get("/", {"auction": yard.auction_id, "yard": yard.id, "vt": "sedan", "port": "KLJ"})
             self.assertContains(resp, "$950")
             self.assertContains(resp, "Нет моря у оператора")
@@ -244,7 +247,7 @@ class TariffTests(TestCase):
         user = User.objects.create(username="tg7")
         TelegramProfile.objects.create(user=user, telegram_id=7, phone="380000000007")
         self.client.force_login(user)
-        patcher = mock.patch("accounts.middleware.is_allowed", return_value=True)
+        patcher = mock.patch("accounts.middleware.find_entry", return_value=FULL_ENTRY)
         patcher.start()
         self.addCleanup(patcher.stop)
 

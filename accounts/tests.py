@@ -109,5 +109,43 @@ class LoginFlowTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("start=login_", resp.json()["link"])
 
+    def test_land_role_sees_only_land_page(self):
+        write_allowed([{"phone": "17186121976", "nick": "", "row": 3, "role": "Суша"}])
+        token = self.start_login()
+        ok, _ = confirm_login(token, 561, 561, "+1 718 612 1976", "", "Land User")
+        self.assertTrue(ok)
+        self.client.get("/login/status/")
+        self.assertRedirects(self.client.get("/"), "/land/", fetch_redirect_response=False)
+        self.assertRedirects(self.client.get("/tariffs/"), "/land/", fetch_redirect_response=False)
+        self.assertRedirects(self.client.get("/operators/"), "/land/", fetch_redirect_response=False)
+        resp = self.client.get("/land/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "Подбор маршрута")
+        self.assertNotContains(resp, "Тарифы операторов</a>")
+
+    def test_superadmin_and_empty_role_full_access(self):
+        for role in ("Суперадмин", ""):
+            write_allowed([{"phone": "380663341966", "nick": "", "row": 2, "role": role}])
+            self.client.logout()
+            token = self.start_login()
+            confirm_login(token, 562, 562, "380663341966", "", "Admin")
+            self.client.get("/login/status/")
+            self.assertEqual(self.client.get("/tariffs/").status_code, 200)
+
+    def test_unknown_role_denied(self):
+        write_allowed([{"phone": "380663341966", "nick": "", "row": 2, "role": "Гость"}])
+        token = self.start_login()
+        ok, text = confirm_login(token, 563, 563, "380663341966", "", "X")
+        self.assertFalse(ok)
+        self.assertIn("роль", text)
+
+    def test_role_change_applies_without_relogin(self):
+        token = self.start_login()
+        confirm_login(token, 564, 564, "380663341966", "", "X")
+        self.client.get("/login/status/")
+        self.assertEqual(self.client.get("/tariffs/").status_code, 200)
+        write_allowed([{"phone": "380663341966", "nick": "", "row": 2, "role": "Суша"}])
+        self.assertRedirects(self.client.get("/tariffs/"), "/land/", fetch_redirect_response=False)
+
     def test_anonymous_redirected(self):
         self.assertRedirects(self.client.get("/"), "/login/", fetch_redirect_response=False)

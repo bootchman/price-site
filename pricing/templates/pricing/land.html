@@ -26,7 +26,7 @@
 </form>
 
 {% if corrections %}
-<div class="notice">Включена коррекция суши: {% for p in corrections %}<b>{{ p.name }}</b> {% if p.land_correction > 0 %}+{% endif %}{{ p.land_correction|floatformat:0 }} $ к каждой цене{% if not forloop.last %}; {% endif %}{% endfor %}. Настраивается в карточке оператора во вкладке «Тарифы операторов».</div>
+<div class="notice">Включена коррекция суши: {% for p in corrections %}<b>{{ p.name }}</b> {% if p.land_correction > 0 %}+{% endif %}{{ p.land_correction|floatformat:0 }} $ к каждой цене{% if not forloop.last %}; {% endif %}{% endfor %}. {% if request.access != "land" %}Настраивается в карточке оператора во вкладке «Тарифы операторов».{% endif %}</div>
 {% endif %}
 {% if summary %}
 <h2 class="section">Сводка: кто дешевле по суше</h2>

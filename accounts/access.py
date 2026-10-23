@@ -16,11 +16,21 @@ log = logging.getLogger(__name__)
 _cache = {"mtime": None, "entries": []}
 
 
+FULL, LAND = "full", "land"
+ROLE_ALIASES = {"": FULL, "суперадмин": FULL, "суша": LAND}
+
+
 @dataclass(frozen=True)
 class Entry:
     phone: str
     nick: str
     row: int
+    role: str = ""
+
+    @property
+    def access(self):
+        """«full» — весь сайт, «land» — только «Сравнение суши», None — роль не распознана."""
+        return ROLE_ALIASES.get(self.role.strip().lower())
 
 
 def normalize_phone(value) -> str:
@@ -52,7 +62,8 @@ def load_entries(path: Path = None) -> list:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             _cache["entries"] = [
-                Entry(normalize_phone(e.get("phone")), normalize_nick(e.get("nick")), int(e.get("row") or 0))
+                Entry(normalize_phone(e.get("phone")), normalize_nick(e.get("nick")), int(e.get("row") or 0),
+                      str(e.get("role") or ""))
                 for e in data.get("entries", [])
             ]
             _cache["mtime"] = mtime

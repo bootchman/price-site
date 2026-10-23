@@ -2,7 +2,7 @@
 """Синхронизация списка доступа price.interalex.pro с Google Таблицей.
 
 Запускается от root по cron (у сайта нет доступа к токену Google):
-  1. читает лист «Лист1» (Телефон / Ник / Пользователь / Время авторизации);
+  1. читает лист «Лист1» (Телефон / Ник / Пользователь / Время авторизации / Роль);
   2. переносит в таблицу входы из auth_events.jsonl (заполняет «Пользователь» и
      «Время авторизации», только если они ещё пустые — фиксируем первый вход);
   3. пишет /srv/price/data/allowed.json для сайта и бота.
@@ -69,7 +69,7 @@ def take_events():
 
 def main():
     token = access_token()
-    rng = urllib.parse.quote(f"{SHEET_TAB}!A1:D2000")
+    rng = urllib.parse.quote(f"{SHEET_TAB}!A1:E2000")
     rows = call("GET", f"{API}/values/{rng}", token).get("values", [])
 
     events = take_events()
@@ -78,12 +78,12 @@ def main():
         row = int(ev.get("row") or 0)
         if row < 2 or row > len(rows):
             continue
-        current = rows[row - 1] + [""] * 4
+        current = rows[row - 1] + [""] * 5
         if current[2].strip() or current[3].strip():
             continue
         who = f"{ev.get('full_name') or ev.get('username') or ''} ({ev.get('telegram_id')})".strip()
         updates.append({"range": f"{SHEET_TAB}!C{row}:D{row}", "values": [[who, ev.get("at", "")]]})
-        rows[row - 1] = current[:2] + [who, ev.get("at", "")]
+        rows[row - 1] = current[:2] + [who, ev.get("at", "")] + current[4:5]
     if updates:
         call("POST", f"{API}/values:batchUpdate", token, {"valueInputOption": "USER_ENTERED", "data": updates})
     if os.path.exists(EVENTS + ".processing"):
@@ -91,10 +91,10 @@ def main():
 
     entries = []
     for i, r in enumerate(rows[1:], start=2):
-        r = r + [""] * 2
-        phone, nick = digits(r[0]), r[1].strip().lstrip("@")
+        r = r + [""] * 5
+        phone, nick, role = digits(r[0]), r[1].strip().lstrip("@"), r[4].strip()
         if phone or nick:
-            entries.append({"phone": phone, "nick": nick, "row": i})
+            entries.append({"phone": phone, "nick": nick, "row": i, "role": role})
     payload = {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "entries": entries}
     tmp = ALLOWED + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:

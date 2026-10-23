@@ -14,6 +14,7 @@ from .models import LoginToken, TelegramProfile
 DENY_NOT_IN_LIST = "Вашего номера нет в списке доступа. Обратитесь к администратору."
 DENY_EXPIRED = "Ссылка для входа устарела. Вернитесь на сайт и нажмите «Войти» ещё раз."
 DENY_FOREIGN_CONTACT = "Нужно поделиться своим контактом, а не чужим."
+DENY_UNKNOWN_ROLE = "Ваша роль в списке доступа не распознана. Обратитесь к администратору."
 
 
 def create_login_token(session_key: str) -> LoginToken:
@@ -51,6 +52,12 @@ def confirm_login(token: str, telegram_id: int, contact_user_id: int, phone: str
         login.deny_reason = "нет в списке"
         login.save(update_fields=["status", "telegram_id", "deny_reason"])
         return False, DENY_NOT_IN_LIST
+    if entry.access is None:
+        login.status = LoginToken.DENIED
+        login.telegram_id = telegram_id
+        login.deny_reason = f"роль «{entry.role}» не распознана"
+        login.save(update_fields=["status", "telegram_id", "deny_reason"])
+        return False, DENY_UNKNOWN_ROLE
 
     user_model = get_user_model()
     profile = TelegramProfile.objects.filter(telegram_id=telegram_id).select_related("user").first()
