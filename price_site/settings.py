@@ -89,6 +89,16 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = Path(os.environ.get("PRICE_STATIC_ROOT", BASE_DIR / "staticfiles"))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Имена статических файлов с хэшем содержимого (site.3f2a1b.css): после обновления браузер
+# сразу берёт новую версию, хотя nginx кэширует /static/ на 7 дней. В тестах — обычное хранилище.
+import sys  # noqa: E402
+
+if "test" not in sys.argv:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"},
+    }
+
 LOGIN_URL = "/login/"
 
 # Сессия живёт 30 дней; доступ при этом перепроверяется по списку на каждом запросе.
