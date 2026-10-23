@@ -399,6 +399,8 @@ class TariffTests(TestCase):
         ga = [x for x in summary if x["column"]["group"] == "GA"][0]
         wins = {o["name"]: o["wins"] for o in ga["ops"]}
         self.assertEqual((ga["compared"], wins), (1, {"Cargoloop": 0, "VS Brothers": 1}))
+        overpay = {o["name"]: o["overpay"] for o in ga["ops"]}
+        self.assertEqual(overpay, {"Cargoloop": 50, "VS Brothers": 0})  # Cargoloop 500 против лучшей VS 450
 
     def test_land_compare_operator_filter(self):
         resp = self.client.get("/land/", {"auction": self.yard.auction_id, "vt": "sedan", "g": ["GA"], "op": [self.cl.pk]})

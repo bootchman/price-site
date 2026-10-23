@@ -27,19 +27,19 @@
 
 {% if summary %}
 <h2 class="section">Сводка: кто дешевле по суше</h2>
-<p class="muted small">«Сравнимых» — площадки, где по этому складу есть цены минимум у двух операторов и они различаются. «Дешевле» — доля сравнимых площадок, где оператор самый дешёвый (в сумме 100%; если минимальная цена одинакова у нескольких, площадка делится между ними поровну), рядом — число площадок, где он один самый дешёвый, и «вничью». «Средняя» — средняя цена оператора на сравнимых площадках, где он есть.</p>
+<p class="muted small">«Сравнимых» — площадки, где по этому складу есть цены минимум у двух операторов и они различаются. «Дешевле» — доля сравнимых площадок, где оператор самый дешёвый (в сумме 100%; если минимальная цена одинакова у нескольких, площадка делится между ними поровну), рядом — число площадок, где он один самый дешёвый, и «вничью». «Переплата к лучшей цене» — насколько в среднем цена оператора выше самой дешёвой цены на той же площадке (по сравнимым площадкам, где он есть): $0 — всегда самый дешёвый.</p>
 <div class="table-wrap"><table class="data">
   <thead>
     <tr><th class="left" rowspan="2">Оператор</th>
       {% for s in summary %}<th class="term-head term-{{ s.column.code }} group-start" colspan="3">{{ s.column.name }}<br><span class="muted small">сравнимых площадок: {{ s.compared }}</span></th>{% endfor %}</tr>
-    <tr>{% for s in summary %}<th class="group-start">С ценой</th><th>Дешевле</th><th>Средняя</th>{% endfor %}</tr>
+    <tr>{% for s in summary %}<th class="group-start">С ценой</th><th>Дешевле</th><th>Переплата к лучшей цене</th>{% endfor %}</tr>
   </thead>
   <tbody>{% for r in summary_rows %}
     <tr><td class="label left">{{ r.name }}</td>
       {% for o in r.cells %}{% if o %}
         <td class="num group-start">{{ o.coverage }}</td>
         <td class="num"><b>{{ o.share }}%</b> <span class="muted small">{{ o.wins }}{% if o.ties %} +{{ o.ties }} вничью{% endif %}</span></td>
-        <td class="num">{% if o.avg %}${{ o.avg }}{% else %}—{% endif %}</td>
+        <td class="num">{% if o.overpay is not None %}<b>${{ o.overpay }}</b> <span class="muted small">на {{ o.compared_here }} пл.</span>{% else %}—{% endif %}</td>
       {% else %}<td class="num group-start muted">—</td><td class="num muted">—</td><td class="num muted">—</td>{% endif %}{% endfor %}
     </tr>
   {% endfor %}</tbody>

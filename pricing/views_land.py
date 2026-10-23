@@ -78,7 +78,7 @@ def land_compare(request):
 
     rows, summary = [], []
     stats = {c["group"]: {"compared": 0, "wins": defaultdict(int), "ties": defaultdict(int),
-                          "points": defaultdict(float), "prices": defaultdict(list),
+                          "points": defaultdict(float), "overpay": defaultdict(list),
                           "coverage": defaultdict(int)} for c in columns}
     for yard in sorted(yards.values(), key=lambda y: (y.state, y.name)):
         row_cells = []
@@ -94,7 +94,7 @@ def land_compare(request):
                 stats[g]["compared"] += 1
                 cheapest = [op for op, v in present.items() if v == mn]
                 for op, v in present.items():
-                    stats[g]["prices"][op].append(v)
+                    stats[g]["overpay"][op].append(v - mn)  # насколько дороже лучшей цены на этой же площадке
                 for op in cheapest:
                     # Ничья делит площадку поровну — доли в сумме дают 100%
                     stats[g]["points"][op] += 1 / len(cheapest)
@@ -123,7 +123,8 @@ def land_compare(request):
                 "wins": st["wins"][op],
                 "ties": st["ties"][op],
                 "share": share,
-                "avg": round(mean(st["prices"][op])) if st["prices"][op] else None,
+                "overpay": round(mean(st["overpay"][op])) if st["overpay"][op] else None,
+                "compared_here": len(st["overpay"][op]),
             } for op, share in zip(c["ops"], shares)],
         })
 
