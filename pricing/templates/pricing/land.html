@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Сравнение суши — InterAlex Price{% endblock %}
+{% block content %}
+<h1>Сравнение суши</h1>
+<p class="muted">Только наземная перевозка: площадка аукциона → склад в порту, по операторам. Без моря и статей расходов. В каждом складе самая дешёвая цена — зелёная, самая дорогая — красная (если цен две и больше).</p>
+
+<form method="get" class="card form-grid">
+  <label>Аукцион
+    <select name="auction" onchange="this.form.state.value=''; this.form.submit()">{% for a in auctions %}<option value="{{ a.id }}" {% if a == auction %}selected{% endif %}>{{ a.code }}</option>{% endfor %}</select>
+  </label>
+  <label>Штат
+    <select name="state"><option value="">все</option>{% for s in states %}<option value="{{ s }}" {% if s == state %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+  </label>
+  <label>Тип машины
+    <select name="vt">{% for v in vtypes %}<option value="{{ v.code }}" {% if v == vtype %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select>
+  </label>
+  <div class="wide checks">
+    <span class="checks-title">Склады</span>
+    {% for g, name in groups_all %}<label class="check"><input type="checkbox" name="g" value="{{ g }}" {% if g in chosen %}checked{% endif %}> {{ name }}</label>{% endfor %}
+  </div>
+  <div><button class="btn">Показать</button></div>
+</form>
+
+{% if summary %}
+<h2 class="section">Сводка: кто дешевле по суше</h2>
+<p class="muted small">«Сравнимых» — площадки, где по этому складу есть цены минимум у двух операторов и они различаются. «Дешевле» — сколько раз оператор был самым дешёвым на таких площадках. «Средняя» — средняя цена оператора на сравнимых площадках, где он есть.</p>
+<div class="table-wrap"><table class="data">
+  <thead>
+    <tr><th class="left" rowspan="2">Оператор</th>
+      {% for s in summary %}<th class="term-head term-{{ s.column.code }} group-start" colspan="3">{{ s.column.name }}<br><span class="muted small">сравнимых площадок: {{ s.compared }}</span></th>{% endfor %}</tr>
+    <tr>{% for s in summary %}<th class="group-start">С ценой</th><th>Дешевле</th><th>Средняя</th>{% endfor %}</tr>
+  </thead>
+  <tbody>{% for r in summary_rows %}
+    <tr><td class="label left">{{ r.name }}</td>
+      {% for o in r.cells %}{% if o %}
+        <td class="num group-start">{{ o.coverage }}</td>
+        <td class="num">{{ o.wins }} <span class="muted small">({{ o.share }}%)</span></td>
+        <td class="num">{% if o.avg %}${{ o.avg }}{% else %}—{% endif %}</td>
+      {% else %}<td class="num group-start muted">—</td><td class="num muted">—</td><td class="num muted">—</td>{% endif %}{% endfor %}
+    </tr>
+  {% endfor %}</tbody>
+</table></div>
+{% endif %}
+
+<h2 class="section">{{ auction.code }}{% if state %} · {{ state }}{% endif %} · {{ vtype.name|lower }} · площадок: {{ rows|length }}</h2>
+{% if columns %}
+<div class="table-wrap"><table class="data land">
+  <thead>
+    <tr><th class="left" rowspan="2">Площадка</th>
+      {% for c in columns %}<th class="term-head term-{{ c.code }} group-start" colspan="{{ c.ops|length }}">{{ c.name }}</th>{% endfor %}</tr>
+    <tr>{% for c in columns %}{% for op in c.ops %}<th class="{% if forloop.first %}group-start{% endif %}">{{ op }}</th>{% endfor %}{% endfor %}</tr>
+  </thead>
+  <tbody>{% for r in rows %}
+    <tr><td class="label left">{{ r.yard.state }} — {{ r.yard.name }}{% if r.yard.city %} <span class="muted small">({{ r.yard.city }})</span>{% endif %}</td>
+      {% for c in r.cells %}<td class="num {{ c.css }}">{% if c.value is not None %}${{ c.value|floatformat:0 }}{% if c.estimate %}<span class="muted" title="расчёт по коэффициенту">*</span>{% endif %}{% endif %}</td>{% endfor %}</tr>
+  {% endfor %}</tbody>
+</table></div>
+<p class="muted small">* — цена рассчитана по коэффициенту оператора к базовой (например, Cargoloop: пикап = база × 1.5).</p>
+{% else %}
+<div class="notice">Нет цен суши для выбранных складов.</div>
+{% endif %}
+{% endblock %}

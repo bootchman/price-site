@@ -15,6 +15,7 @@
     {% if user.is_authenticated %}
       <nav class="nav">
         <a href="{% url 'home' %}" class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}">Подбор маршрута</a>
+        <a href="{% url 'land' %}" class="{% if request.resolver_match.url_name == 'land' %}active{% endif %}">Сравнение суши</a>
         <a href="{% url 'tariffs' %}" class="{% if request.resolver_match.url_name and 'tariff' in request.resolver_match.url_name %}active{% endif %}">Тарифы операторов</a>
         <a href="{% url 'operators' %}" class="{% if request.resolver_match.url_name == 'operators' %}active{% endif %}">Прайсы</a>
       </nav>

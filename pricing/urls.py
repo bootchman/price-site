@@ -1,8 +1,9 @@
 from django.urls import path
 
-from . import views_tariffs as t
+from . import views_land, views_tariffs as t
 
 urlpatterns = [
+    path("land/", views_land.land_compare, name="land"),
     path("tariffs/", t.index, name="tariffs"),
     path("tariffs/add/", t.add_provider, name="tariff_add_provider"),
     path("tariffs/rate/", t.set_rate, name="tariff_set_rate"),

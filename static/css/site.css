@@ -98,3 +98,15 @@ table.data th.term-head { border-bottom: 6px solid var(--c, var(--line-strong));
   .form-grid .wide { grid-column: span 1; }
   .page { padding: 14px 12px 32px; }
 }
+
+/* Сравнение суши */
+table.data td.cell-min { background: #6aa84f !important; color: #fff; font-weight: 700; }
+table.data td.cell-max { background: #e06666 !important; color: #fff; font-weight: 700; }
+table.data td.cell-min .muted, table.data td.cell-max .muted { color: #fff; }
+table.data th.group-start, table.data td.group-start { border-left: 2px solid var(--line-strong); }
+table.land td.label { position: sticky; left: 0; background: inherit; z-index: 1; }
+table.land tbody tr td.label { background: var(--bg); }
+table.land tbody tr:nth-child(even) td.label { background: var(--zebra); }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.checks-title { font-weight: 700; font-size: 12px; width: 100%; }
+.check { display: inline-flex; align-items: center; gap: 4px; font-weight: 400 !important; font-size: 13px !important; flex-direction: row !important; }

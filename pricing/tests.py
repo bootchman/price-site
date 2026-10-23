@@ -388,6 +388,18 @@ class TariffTests(TestCase):
         vs = [o for o in full if o.land.price_list.provider.name == "VS Brothers"][0]
         self.assertIn("hazardous fee", vs.missing)
 
+    def test_land_compare_page(self):
+        resp = self.client.get("/land/", {"auction": self.yard.auction_id, "vt": "sedan", "g": ["GA", "NJ"]})
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        # Savannah: VS 450 (суша = 950 − 500) дешевле Cargoloop 500 → VS зелёный, Cargoloop красный
+        self.assertIn("cell-min", html)
+        self.assertIn("cell-max", html)
+        summary = resp.context["summary"]
+        ga = [x for x in summary if x["column"]["group"] == "GA"][0]
+        wins = {o["name"]: o["wins"] for o in ga["ops"]}
+        self.assertEqual((ga["compared"], wins), (1, {"Cargoloop": 0, "VS Brothers": 1}))
+
     def test_pages_render(self):
         TariffChange.objects.create(provider=self.vs, user=None, action="море", description="внесено системой")
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)
