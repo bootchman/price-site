@@ -1,7 +1,8 @@
 from django.urls import path
 
-from . import views
+from pricing import views as pricing_views
 
 urlpatterns = [
-    path("", views.home, name="home"),
+    path("", pricing_views.route, name="home"),
+    path("operators/", pricing_views.operators, name="operators"),
 ]

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Подобрать маршрут — InterAlex Price{% endblock %}
+{% block content %}
+<h1>Подобрать маршрут для авто</h1>
+<p class="muted">Суша от площадки аукциона до склада в порту + море до порта получения. Цены в USD.</p>
+
+<form method="get" class="card form-grid" id="route-form">
+  <label>Аукцион
+    <select name="auction" onchange="this.form.yard.value=''; this.form.submit()">
+      {% for a in auctions %}<option value="{{ a.id }}" {% if a == auction %}selected{% endif %}>{{ a.code }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="wide">Площадка
+    <input type="search" id="yard-filter" placeholder="Поиск: штат, город или название" autocomplete="off">
+    <select name="yard" id="yard-select" size="6" required>
+      {% for y in yards %}<option value="{{ y.id }}" {% if y == yard %}selected{% endif %}>{{ y.state }} — {{ y.name }}{% if y.city %} ({{ y.city }}{% if y.zip %} {{ y.zip }}{% endif %}){% endif %}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Тип машины
+    <select name="vt">{% for v in vtypes %}<option value="{{ v.code }}" {% if v == vtype %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select>
+  </label>
+  <label>Порт получения
+    <select name="port">{% for p in ports %}<option value="{{ p.code }}" {% if p == port %}selected{% endif %}>{{ p.name }} ({{ p.country }})</option>{% endfor %}</select>
+  </label>
+  <div><button class="btn">Подобрать</button></div>
+</form>
+
+{% if yard %}
+  <h2 class="section">{{ yard.auction.code }} · {{ yard.state }} — {{ yard.name }} → {{ port.name }}, {{ vtype.name|lower }}</h2>
+  {% if full %}
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>#</th><th>Итого</th><th>Суша</th><th>Склад</th><th>Море</th><th>Примечания</th></tr></thead>
+      <tbody>
+      {% for o in full %}
+        <tr class="{% if o.total == best %}best{% endif %}">
+          <td>{{ forloop.counter }}</td>
+          <td class="num"><b>${{ o.total|floatformat:0 }}</b></td>
+          <td>{{ o.land.price_list.provider.name }} <span class="num">${{ o.land.amount|floatformat:0 }}</span>{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
+          <td>{{ o.land.to_terminal.name }}</td>
+          <td>{{ o.sea.price_list.provider.name }} <span class="num">${{ o.sea.amount|floatformat:0 }}</span>{% if o.same_provider %} <span class="tag tag-ok">один оператор</span>{% endif %}</td>
+          <td class="muted small">{{ o.notes|join:"; " }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  {% elif not has_sea %}
+    <div class="notice">Морских ставок до порта {{ port.name }} пока нет — нужен прайс на море до этого порта.</div>
+  {% else %}
+    <div class="notice">Для этой площадки нет полного маршрута до {{ port.name }}: склады, куда её везут, не совпадают со складами, откуда есть море.</div>
+  {% endif %}
+
+  {% if land_only %}
+    <h3 class="section">Суша без морской ставки до {{ port.name }}</h3>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Оператор</th><th>Склад</th><th>Суша</th><th></th></tr></thead>
+      <tbody>{% for r in land_only %}
+        <tr><td>{{ r.price_list.provider.name }}</td><td>{{ r.to_terminal.name }}</td><td class="num">${{ r.amount|floatformat:0 }}</td>
+        <td class="muted small">{% if r.is_preferred %}предпочт. склад{% endif %}{% if r.is_estimate %} {{ r.note }}{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+  {% endif %}
+{% endif %}
+
+<script>
+(function () {
+  const filter = document.getElementById("yard-filter"), select = document.getElementById("yard-select");
+  if (!filter || !select) return;
+  filter.addEventListener("input", function () {
+    const q = filter.value.trim().toLowerCase();
+    for (const opt of select.options) opt.hidden = q && !opt.text.toLowerCase().includes(q);
+  });
+  select.addEventListener("dblclick", () => select.form.submit());
+})();
+</script>
+{% endblock %}

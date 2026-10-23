@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Операторы и прайсы — InterAlex Price{% endblock %}
+{% block content %}
+<h1>Операторы и прайсы</h1>
+<p class="muted">Опубликованные версии прайсов. Новая загрузка того же оператора и того же охвата отправляет прежнюю в архив.</p>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Оператор</th><th>Прайс</th><th>Охват</th><th>Действует с</th><th>Загружен</th><th>Площадок</th><th>Строк суши</th><th>Строк моря</th><th>Тип</th></tr></thead>
+  <tbody>
+  {% for pl in lists %}
+    <tr>
+      <td><b>{{ pl.provider.name }}</b></td>
+      <td>{{ pl.title }}</td>
+      <td>{{ pl.scope }}</td>
+      <td>{{ pl.valid_from|date:"d.m.Y"|default:"—" }}</td>
+      <td>{{ pl.imported_at|date:"d.m.Y H:i" }}</td>
+      <td class="num">{{ pl.yards }}</td>
+      <td class="num">{{ pl.land }}</td>
+      <td class="num">{{ pl.sea }}</td>
+      <td>{% if pl.is_bundle %}суша + море{% elif pl.sea and not pl.land %}море{% else %}суша{% endif %}</td>
+    </tr>
+    {% if pl.stats.предупреждения %}<tr><td></td><td colspan="8" class="muted small">⚠ {{ pl.stats.предупреждения|join:" · " }}</td></tr>{% endif %}
+  {% empty %}
+    <tr><td colspan="9" class="muted">Прайсов пока нет.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}
