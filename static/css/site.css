@@ -46,3 +46,7 @@ table.data tr.best td { background: #ecfdf3; }
 .tag-ok { background: #ecfdf3; color: var(--ok); }
 @media (max-width: 640px) { .form-grid .wide { grid-column: span 1; } .nav { margin-left: 8px; gap: 10px; font-size: 14px; } }
 .tag-warn { background: #fffaeb; color: #b54708; }
+.tag-danger { background: #fef3f2; color: var(--danger); }
+.row { display: flex; gap: 8px; }
+.row input { flex: 1; font: inherit; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; }
+tr.muted td { color: var(--muted); }

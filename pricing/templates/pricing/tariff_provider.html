@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ provider.name }} — тарифы{% endblock %}
+{% block content %}
+<p><a href="{% url 'tariffs' %}">← Тарифы операторов</a></p>
+<h1>{{ provider.name }}</h1>
+<p class="muted">Ручное значение заменяет значение из прайса с тем же ключом. Удалите ручное — снова будет действовать прайс.</p>
+
+<h2 class="section">Море (за машину)</h2>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Склад США</th><th>Порт получения</th><th>Тип машины</th><th>За машину</th><th>Источник</th><th>Примечание</th><th></th></tr></thead>
+  <tbody>
+  {% for r in sea %}
+    <tr>
+      <td>{{ r.from_terminal.name }}</td><td>{{ r.to_port.name }}</td><td>{{ r.vehicle_type.name }}</td>
+      <td class="num">${{ r.amount|floatformat:0 }}</td>
+      <td>{% if r.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс: {{ r.price_list.title }}</span>{% endif %}</td>
+      <td class="muted small">{{ r.note }}</td>
+      <td>{% if r.price_list.is_manual %}<form method="post" action="{% url 'tariff_delete' provider.pk 'sea' r.pk %}">{% csrf_token %}<button class="link">удалить</button></form>{% endif %}</td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">Морских ставок нет.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+<form method="post" action="{% url 'tariff_add_sea' provider.pk %}" class="card form-grid">{% csrf_token %}
+  <label>Склад США<select name="terminal" required>{% for t in terminals %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}</select></label>
+  <label>Порт получения<select name="port" required>{% for p in ports %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></label>
+  <label>Тип машины<select name="vehicle_type"><option value="all">все типы одинаково</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
+  <label>Цена за<select name="unit"><option value="car">машину</option><option value="container">контейнер (÷ 4)</option></select></label>
+  <label>Сумма, USD<input name="amount" inputmode="decimal" required></label>
+  <label>Примечание<input name="note" placeholder="откуда цифра"></label>
+  <div><button class="btn">Сохранить море</button></div>
+</form>
+
+<h2 class="section">Услуги, material fee, экспедирование</h2>
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Статья</th><th>Название</th><th>Сумма</th><th>За</th><th>Когда начисляется</th><th>Порт</th><th>Тип</th><th>Источник</th><th></th></tr></thead>
+  <tbody>
+  {% for c, active in charges %}
+    <tr class="{% if not active %}muted{% endif %}">
+      <td>{{ c.get_category_display }}</td><td>{{ c.name }}</td>
+      <td class="num">{% if c.currency == "EUR" %}€{% else %}${% endif %}{{ c.amount|floatformat:0 }}</td>
+      <td>{{ c.get_unit_display }}</td><td class="small">{{ c.get_applies_on_display }}</td>
+      <td>{{ c.to_port.name|default:"все" }}</td><td>{{ c.vehicle_type.name|default:"все" }}</td>
+      <td>{% if c.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс</span>{% if not active %} <span class="small">заменено вручную</span>{% endif %}{% endif %}</td>
+      <td>{% if c.price_list.is_manual %}<form method="post" action="{% url 'tariff_delete' provider.pk 'charge' c.pk %}">{% csrf_token %}<button class="link">удалить</button></form>{% endif %}</td>
+    </tr>
+  {% empty %}<tr><td colspan="9" class="muted">Статей расходов нет — в подборе маршрута у оператора будет пометка «нет данных».</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+<form method="post" action="{% url 'tariff_add_charge' provider.pk %}" class="card form-grid">{% csrf_token %}
+  <label>Статья<select name="category" id="category">{% for v, n in categories %}<option value="{{ v }}">{{ n|capfirst }}</option>{% endfor %}</select></label>
+  <label>Сумма<input name="amount" inputmode="decimal" required placeholder="0 — не берёт"></label>
+  <label>Валюта<select name="currency" id="currency"><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
+  <label>За<select name="unit"><option value="car">машину</option><option value="container">контейнер (÷ 4)</option></select></label>
+  <label>Когда начисляется<select name="applies_on">{% for v, n in applies %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
+  <label>Порт получения<select name="port"><option value="">все порты</option>{% for p in ports %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></label>
+  <label>Тип машины<select name="vehicle_type"><option value="">все типы</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
+  <label>Название<input name="name" placeholder="необязательно"></label>
+  <label>Примечание<input name="note" placeholder="откуда цифра"></label>
+  <div><button class="btn">Сохранить статью</button></div>
+</form>
+
+<h2 class="section">История изменений</h2>
+<div class="table-wrap"><table class="data">
+  <tbody>{% for h in history %}
+    <tr><td class="num">{{ h.at|date:"d.m.Y H:i" }}</td><td>{{ h.user.telegram.full_name|default:h.user.username|default:"—" }}</td><td class="small">{{ h.description }}</td></tr>
+  {% empty %}<tr><td class="muted">Изменений пока не было.</td></tr>{% endfor %}</tbody>
+</table></div>
+<script>
+document.getElementById("category").addEventListener("change", function () {
+  document.getElementById("currency").value = this.value === "forwarding" ? "EUR" : "USD";
+});
+</script>
+{% endblock %}

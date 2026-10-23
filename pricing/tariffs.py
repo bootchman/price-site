@@ -1,0 +1,64 @@
+"""Тарифы операторов: море и статьи расходов с приоритетом ручного ввода над прайсом."""
+from decimal import Decimal
+
+from .models import Charge, ExchangeRate, PriceList, Rate
+
+CATEGORIES = [Charge.SERVICES, Charge.MATERIAL, Charge.FORWARDING]
+CONTAINER_SLOTS = 4  # цена за машину = ¼ контейнера
+
+
+def manual_list(provider) -> PriceList:
+    pl, _ = PriceList.objects.get_or_create(
+        provider=provider, scope="manual", is_manual=True,
+        defaults={"title": "Ручные значения", "source": "сайт", "status": PriceList.PUBLISHED},
+    )
+    return pl
+
+
+def effective_sea(port, vehicle_type):
+    """{(оператор, склад): Rate} — ручная ставка заменяет ставку из прайса; из прайса — самая дешёвая."""
+    rates = Rate.objects.filter(
+        stage=Rate.SEA, to_port=port, vehicle_type=vehicle_type, price_list__status=PriceList.PUBLISHED
+    ).select_related("price_list__provider", "from_terminal", "to_port", "vehicle_type")
+    manual, from_price = {}, {}
+    for r in rates:
+        key = (r.price_list.provider_id, r.from_terminal_id)
+        target = manual if r.price_list.is_manual else from_price
+        if key not in target or r.amount < target[key].amount:
+            target[key] = r
+    from_price.update(manual)
+    return from_price
+
+
+def effective_charges(provider_ids):
+    """{оператор: {категория: [Charge]}} — если по категории есть ручные значения, они заменяют прайс."""
+    result = {}
+    qs = Charge.objects.filter(price_list__status=PriceList.PUBLISHED, price_list__provider_id__in=provider_ids) \
+        .select_related("price_list__provider", "vehicle_type", "to_port")
+    grouped = {}
+    for c in qs:
+        grouped.setdefault((c.price_list.provider_id, c.category), {"manual": [], "price": []})[
+            "manual" if c.price_list.is_manual else "price"].append(c)
+    for (pid, cat), parts in grouped.items():
+        result.setdefault(pid, {})[cat] = parts["manual"] or parts["price"]
+    return result
+
+
+def latest_eur_usd():
+    return ExchangeRate.objects.first()
+
+
+def per_car(charge) -> Decimal:
+    amount = charge.amount
+    if charge.unit == "container":
+        amount = amount / CONTAINER_SLOTS
+    return amount
+
+
+def applicable(charges, vehicle_type, port, stages):
+    """Статьи одной категории, которые относятся к этой машине, порту и роли оператора."""
+    items = [c for c in charges if c.applies_on in stages and (c.to_port_id is None or c.to_port_id == port.id)]
+    specific = [c for c in items if c.vehicle_type_id == vehicle_type.id]
+    if specific:
+        return specific
+    return [c for c in items if c.vehicle_type_id is None]

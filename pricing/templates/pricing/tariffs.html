@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Тарифы операторов — InterAlex Price{% endblock %}
+{% block content %}
+<h1>Тарифы операторов</h1>
+<p class="muted">Море, услуги, material fee и экспедирование по каждому оператору. Значение, заданное здесь вручную, главнее прайса. Всё это входит в полную стоимость при подборе маршрута.</p>
+
+<div class="table-wrap"><table class="data">
+  <thead><tr><th>Оператор</th><th>Море (порты получения)</th>{% for r in rows|slice:":1" %}{% for name, c in r.cats %}<th>{{ name|capfirst }}</th>{% endfor %}{% endfor %}<th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><b><a href="{% url 'tariff_provider' r.provider.pk %}">{{ r.provider.name }}</a></b></td>
+      <td>{% if r.sea_ports %}{{ r.sea_ports|join:", " }}{% if r.sea_manual %} <span class="tag tag-warn">есть ручные</span>{% endif %}{% else %}<span class="muted">нет данных</span>{% endif %}</td>
+      {% for name, c in r.cats %}
+        <td>{% for i in c.items %}{% if i.currency == "EUR" %}€{% else %}${% endif %}{{ i.amount|floatformat:0 }}{% if i.unit == "container" %}/конт.{% endif %}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">нет данных</span>{% endfor %}
+        {% if c.items %}<span class="tag {% if c.manual %}tag-warn{% endif %}">{% if c.manual %}вручную{% else %}из прайса{% endif %}</span>{% endif %}</td>
+      {% endfor %}
+      <td><a href="{% url 'tariff_provider' r.provider.pk %}">Изменить</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<section class="grid">
+  <form method="post" action="{% url 'tariff_add_provider' %}" class="card">{% csrf_token %}
+    <h2>Добавить оператора</h2>
+    <p class="muted small">Если у оператора ещё нет прайса, но известны его море или сборы.</p>
+    <div class="row"><input name="name" placeholder="Название, например «Shipper X»" required><button class="btn">Добавить</button></div>
+  </form>
+  <form method="post" action="{% url 'tariff_set_rate' %}" class="card">{% csrf_token %}
+    <h2>Курс EUR → USD</h2>
+    <p class="muted small">Для пересчёта экспедирования (EUR) в итог маршрута.
+      {% if eur %}Сейчас: <b>{{ eur.eur_usd }}</b> ({{ eur.source }}, {{ eur.date|date:"d.m.Y" }}).{% else %}Курс ещё не задан.{% endif %}
+      Обновляется по ЕЦБ каждый день.</p>
+    <div class="row"><input name="eur_usd" placeholder="например 1.08" required><button class="btn btn-outline">Задать вручную</button></div>
+  </form>
+</section>
+{% endblock %}

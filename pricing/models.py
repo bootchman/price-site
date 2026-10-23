@@ -116,6 +116,7 @@ class PriceList(models.Model):
     imported_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=DRAFT)
     is_bundle = models.BooleanField(default=False)  # «суша + море» в одной цене
+    is_manual = models.BooleanField(default=False)  # «ручные значения» оператора, введённые на сайте
     stats = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
 
@@ -155,8 +156,17 @@ class Charge(models.Model):
     CATEGORY_CHOICES = [(SERVICES, "услуги"), (MATERIAL, "material fee"), (FORWARDING, "экспедирование")]
     UNIT_CHOICES = [("car", "за машину"), ("container", "за контейнер"), ("lot", "за партию"), ("fixed", "фиксированно")]
 
+    SEA_STAGE, LAND_STAGE, ANY_STAGE = "sea", "land", "any"
+    APPLIES_ON_CHOICES = [
+        (SEA_STAGE, "когда оператор везёт морем"),
+        (LAND_STAGE, "когда оператор везёт по суше"),
+        (ANY_STAGE, "при любом участии оператора"),
+    ]
+
     price_list = models.ForeignKey(PriceList, on_delete=models.CASCADE, related_name="charges")
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    applies_on = models.CharField(max_length=8, choices=APPLIES_ON_CHOICES, default=SEA_STAGE)
+    to_port = models.ForeignKey(DestinationPort, null=True, blank=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     applies_to = models.CharField(max_length=120, blank=True)  # порт / страна / «все»
     unit = models.CharField(max_length=12, choices=UNIT_CHOICES, default="car")
@@ -164,3 +174,28 @@ class Charge(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default="USD")
     note = models.CharField(max_length=200, blank=True)
+
+
+class ExchangeRate(models.Model):
+    """Курс EUR → USD для пересчёта экспедирования в итог маршрута."""
+
+    date = models.DateField()
+    eur_usd = models.DecimalField(max_digits=10, decimal_places=4)
+    source = models.CharField(max_length=40)  # «ЕЦБ» / «вручную»
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+
+
+class TariffChange(models.Model):
+    """Журнал ручных изменений тарифов операторов (все пользователи равны и могут править)."""
+
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="tariff_changes")
+    user = models.ForeignKey("auth.User", null=True, on_delete=models.SET_NULL)
+    at = models.DateTimeField(auto_now_add=True)
+    action = models.CharField(max_length=20)
+    description = models.CharField(max_length=300)
+
+    class Meta:
+        ordering = ["-at"]

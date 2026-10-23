@@ -1,13 +1,15 @@
 import json
 import tempfile
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 import openpyxl
 from django.test import TestCase
 
 from pricing.importers import providers
-from pricing.models import DestinationPort, PriceList, Rate, VehicleType, Yard
+from pricing.models import Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, Terminal, VehicleType, Yard
 from pricing.reference import name_key
 from pricing.routes import find_routes
 
@@ -182,7 +184,7 @@ class ImportAndRouteTests(TestCase):
         self.assertEqual(Rate.objects.get(price_list=pl, stage="sea", vehicle_type__code="sedan", from_terminal__code="LAX").amount, Decimal("950"))
         self.assertEqual([(c.category, int(c.amount)) for c in pl.charges.all()], [("services", 175)])
         full, _ = find_routes(Yard.objects.get(), VehicleType.objects.get(code="sedan"), DestinationPort.objects.get(code="KLJ"))
-        self.assertEqual(int(full[0].total), 900)  # суша AML 400 + море AML 500
+        self.assertEqual((int(full[0].base_total), int(full[0].total)), (900, 1075))  # + услуги AML 175
         self.assertTrue(full[0].same_provider)
 
     def test_shipper101(self):
@@ -213,3 +215,98 @@ class ImportAndRouteTests(TestCase):
             self.assertContains(resp, "$950")
             self.assertContains(resp, "один оператор")
             self.assertEqual(self.client.get("/operators/").status_code, 200)
+
+
+class TariffTests(TestCase):
+    """Ручной ввод главнее прайса; полная стоимость маршрута."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from accounts.models import TelegramProfile
+
+        imp = providers.CargoloopImporter("t", "test")
+        imp.parse(CARGOLOOP_HTML)
+        imp.save()
+        path = TMP / "vs_t.xlsx"
+        write_vs(path, "COPART to Lithuania,Klaipeda", {"Sedan": [["AL - MOBILE SOUTH", "-", 950, 1400, "-"]]})
+        imp = providers.VSCalculatorImporter("t", str(path))
+        imp.load(str(path))
+        imp.save()
+        self.vs = Provider.objects.get(name="VS Brothers")
+        self.cl = Provider.objects.get(name="Cargoloop")
+        self.yard = Yard.objects.get()
+        self.sedan = VehicleType.objects.get(code="sedan")
+        self.klj = DestinationPort.objects.get(code="KLJ")
+        user = User.objects.create(username="tg7")
+        TelegramProfile.objects.create(user=user, telegram_id=7, phone="380000000007")
+        self.client.force_login(user)
+        patcher = mock.patch("accounts.middleware.is_allowed", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def best(self, provider_name=None):
+        full, _ = find_routes(self.yard, self.sedan, self.klj)
+        if provider_name:
+            return [o for o in full if o.land.price_list.provider.name == provider_name and o.land.to_terminal.code == "SAV"][0]
+        return full[0]
+
+    def test_missing_charges_flagged(self):
+        o = self.best("VS Brothers")
+        self.assertEqual(int(o.total), 950)
+        self.assertEqual(set(o.missing), {"услуги", "material fee", "экспедирование"})
+
+    def test_manual_sea_overrides_price(self):
+        sav = Terminal.objects.get(code="SAV")
+        self.client.post(f"/tariffs/{self.vs.pk}/sea/", {"terminal": sav.pk, "port": self.klj.pk,
+                                                          "vehicle_type": "all", "unit": "container", "amount": "1600"})
+        o = self.best("VS Brothers")
+        self.assertEqual(int(o.sea.amount), 400)  # 1600 / 4 вместо 500 из калькулятора
+        self.assertIn("море задано вручную", o.notes)
+        self.assertEqual(Rate.objects.filter(price_list__is_manual=True).count(), 5)  # все типы
+        self.assertEqual(self.vs.tariff_changes.count(), 1)
+
+    def test_full_cost_with_charges_and_eur(self):
+        ExchangeRate.objects.create(date=date.today(), eur_usd=Decimal("1.10"), source="тест")
+        for cat, amount, cur in [("services", "25", "USD"), ("material_fee", "100", "USD"), ("forwarding", "200", "EUR")]:
+            self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": cat, "amount": amount, "currency": cur,
+                                                                 "unit": "car", "applies_on": "sea"})
+        o = self.best("VS Brothers")
+        self.assertEqual(o.missing, [])
+        self.assertEqual(int(o.total), 950 + 25 + 100 + 220)
+
+    def test_container_charge_and_zero(self):
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "material_fee", "amount": "200",
+                                                             "currency": "USD", "unit": "container", "applies_on": "sea"})
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "services", "amount": "0",
+                                                             "currency": "USD", "unit": "car", "applies_on": "sea"})
+        o = self.best("VS Brothers")
+        self.assertEqual(int(o.total), 950 + 50)
+        self.assertEqual(o.missing, ["экспедирование"])
+
+    def test_manual_charge_replaces_price_charge(self):
+        pl = self.vs.price_lists.first()
+        Charge.objects.create(price_list=pl, category="services", name="Послуги", amount=Decimal("175"))
+        self.assertEqual(int(self.best("VS Brothers").total), 950 + 175)
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "services", "amount": "60",
+                                                             "currency": "USD", "unit": "car", "applies_on": "sea"})
+        self.assertEqual(int(self.best("VS Brothers").total), 950 + 60)
+
+    def test_land_operator_charge(self):
+        self.client.post(f"/tariffs/{self.cl.pk}/charge/", {"category": "services", "amount": "30",
+                                                             "currency": "USD", "unit": "car", "applies_on": "land"})
+        o = self.best("Cargoloop")  # суша Cargoloop 500 + море VS 500 + услуги Cargoloop 30
+        self.assertEqual(int(o.total), 1030)
+
+    def test_delete_manual_restores_price(self):
+        sav = Terminal.objects.get(code="SAV")
+        self.client.post(f"/tariffs/{self.vs.pk}/sea/", {"terminal": sav.pk, "port": self.klj.pk,
+                                                          "vehicle_type": self.sedan.pk, "unit": "car", "amount": "450"})
+        manual = Rate.objects.get(price_list__is_manual=True)
+        self.client.post(f"/tariffs/{self.vs.pk}/sea/{manual.pk}/delete/")
+        self.assertEqual(int(self.best("VS Brothers").sea.amount), 500)
+
+    def test_pages_render(self):
+        self.assertEqual(self.client.get("/tariffs/").status_code, 200)
+        self.assertEqual(self.client.get(f"/tariffs/{self.vs.pk}/").status_code, 200)
+        resp = self.client.get("/", {"auction": self.yard.auction_id, "yard": self.yard.id, "vt": "sedan", "port": "KLJ"})
+        self.assertContains(resp, "нет данных")
