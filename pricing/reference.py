@@ -48,6 +48,10 @@ VEHICLE_TYPES = [
     ("suv_big", "SUV большой", 3),
     ("pickup", "Пикап", 4),
     ("moto", "Мотоцикл", 5),
+    ("atv", "ATV (квадроцикл)", 6),
+    ("snowmobile", "Снегоход", 7),
+    ("jetski", "Гидроцикл", 8),
+    ("mower", "Газонокосилка", 9),
 ]
 
 AUCTIONS = ["Copart", "IAAI", "Manheim", "Adesa"]

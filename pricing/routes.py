@@ -2,11 +2,11 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from .models import CONTAINER_CHOICES, Charge, PriceList, Rate
+from .models import ANY_CONTAINER, CONTAINER_CHOICES, RATE_CONTAINER_CHOICES, Charge, PriceList, Rate
 from .tariffs import CATEGORIES, applicable, effective_charges, effective_sea, latest_eur_usd, per_car
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
-CONTAINER_NAMES = dict(CONTAINER_CHOICES)
+CONTAINER_NAMES = dict(RATE_CONTAINER_CHOICES)
 
 
 @dataclass
@@ -94,9 +94,10 @@ def find_routes(yard, vehicle_type, port):
         # Лучшее море для этой суши — по полной стоимости (оба контейнера); при равной — тот же оператор.
         candidates.sort(key=lambda o: (o.total, not o.same_provider))
         best = candidates[0]
-        for code, name in CONTAINER_CHOICES:
-            in_cont = [o for o in candidates if o.sea.container == code]
-            best.by_container[name] = in_cont[0].total if in_cont else None
+        if best.sea.container != ANY_CONTAINER:
+            for code, name in CONTAINER_CHOICES:
+                in_cont = [o for o in candidates if o.sea.container in (code, ANY_CONTAINER)]
+                best.by_container[name] = in_cont[0].total if in_cont else None
         if land.is_estimate:
             best.notes.append(f"суша: {land.note or 'оценка'}")
         if best.sea.is_estimate:

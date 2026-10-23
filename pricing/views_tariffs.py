@@ -6,11 +6,12 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .models import CONTAINER_CHOICES, Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType
+from .models import CONTAINER_CHOICES, RATE_CONTAINER_CHOICES, Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType
 from .tariffs import CATEGORIES, CONTAINER_SLOTS, effective_charges, manual_list
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
-CONTAINER_NAMES = dict(CONTAINER_CHOICES)
+CONTAINER_NAMES = dict(RATE_CONTAINER_CHOICES)
+CAR_TYPES = ["sedan", "suv", "suv_big", "pickup"]  # «все легковые» в форме моря
 TERMINAL_ORDER = ["SAV", "ELZ", "NYC", "HOU", "LAX", "IND", "MTL", "MIA", "CHI", "ORF", "SEA", "YTO", "HNL", "ANC"]
 
 
@@ -77,7 +78,7 @@ def provider_page(request, pk):
     return render(request, "pricing/tariff_provider.html", {
         "provider": provider, "columns": columns, "matrix": matrix,
         "manual_sea": sorted(manual_sea, key=lambda r: (r.container, r.to_port.sort, order.get(r.from_terminal.code, 99), r.vehicle_type.sort)),
-        "containers": CONTAINER_CHOICES,
+        "containers": CONTAINER_CHOICES, "sea_containers": RATE_CONTAINER_CHOICES,
         "overridden": overridden,
         "charges": [(c, c.price_list.is_manual or c.category not in manual_cats) for c in charges],
         "terminals": sorted(Terminal.objects.all(), key=lambda t: (order.get(t.code, 99), t.name)), "ports": DestinationPort.objects.all(),
@@ -104,13 +105,15 @@ def add_sea(request, pk):
     port = DestinationPort.objects.filter(pk=request.POST.get("port")).first()
     amount = _decimal(request.POST.get("amount"))
     vt = request.POST.get("vehicle_type")
-    vtypes = list(VehicleType.objects.all()) if vt == "all" else list(VehicleType.objects.filter(pk=vt))
+    vtypes = list(VehicleType.objects.filter(code__in=CAR_TYPES)) if vt == "all" else list(VehicleType.objects.filter(pk=vt))
     if not (terminal and port and vtypes and amount is not None):
         messages.error(request, "Море: укажите склад, порт, тип машины и сумму.")
         return redirect("tariff_provider", pk=pk)
     unit = request.POST.get("unit", "car")
     container = request.POST.get("container") if request.POST.get("container") in CONTAINER_NAMES else "40HC"
     note = request.POST.get("note", "").strip()[:150]
+    if container == "ANY":
+        unit = "car"  # цена за единицу — на 4 не делим
     per_car = amount / CONTAINER_SLOTS if unit == "container" else amount
     if unit == "container":
         note = f"контейнер ${amount:.0f} / {CONTAINER_SLOTS}" + (f"; {note}" if note else "")
@@ -120,7 +123,7 @@ def add_sea(request, pk):
                             container=container).delete()
         Rate.objects.create(price_list=pl, stage=Rate.SEA, from_terminal=terminal, to_port=port, vehicle_type=v,
                             container=container, amount=per_car.quantize(Decimal("0.01")), note=note or "задано вручную")
-    types = "все типы" if vt == "all" else vtypes[0].name
+    types = "все легковые" if vt == "all" else vtypes[0].name
     _log(request, provider, "море", f"Море {CONTAINER_NAMES[container]} {terminal} → {port}, {types}: "
                                     f"${per_car:.0f} за машину. {note}")
     messages.success(request, "Морская ставка сохранена.")

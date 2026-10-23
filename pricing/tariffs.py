@@ -65,7 +65,7 @@ def per_car(charge) -> Decimal:
 def applicable(charges, vehicle_type, port, stages, container="40HC"):
     """Статьи одной категории, которые относятся к этой машине, порту, контейнеру и роли оператора."""
     items = [c for c in charges if c.applies_on in stages and (c.to_port_id is None or c.to_port_id == port.id)
-             and c.container in ("", container)]
+             and (c.container in ("", container) or container == "ANY" and c.container == "")]
     specific_cont = [c for c in items if c.container == container]  # ставка для этого контейнера главнее общей
     if specific_cont:
         items = specific_cont

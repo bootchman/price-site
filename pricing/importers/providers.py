@@ -26,8 +26,10 @@ def display_name(raw: str, state: str = "") -> str:
 # ----------------------------------------------------------------------------- Cargoloop
 CARGOLOOP_URL = "https://www.cargoloop.com/LocalTransportation.aspx?e6d7dfd5="
 CARGOLOOP_TERMINALS = ["Savannah, GA", "Elizabeth, NJ", "Houston, TX", "Los Angeles, CA", "Indianapolis, IN", "Montreal, QC"]
-# Коэффициенты Cargoloop к базовой цене (база — седан, SUV стандартный, фургон стандартный)
-CARGOLOOP_MULTIPLIERS = {"sedan": 1.0, "suv": 1.0, "suv_big": 1.5, "pickup": 1.5, "moto": 0.8}
+# Коэффициенты Cargoloop к базовой цене: база — седан, SUV и фургон стандартные, снегоход, гидроцикл;
+# ×0.8 — мотоцикл, ATV, газонокосилка; ×1.5 — большой SUV, пикап
+CARGOLOOP_MULTIPLIERS = {"sedan": 1.0, "suv": 1.0, "suv_big": 1.5, "pickup": 1.5, "moto": 0.8,
+                         "atv": 0.8, "mower": 0.8, "snowmobile": 1.0, "jetski": 1.0}
 
 
 class CargoloopImporter(Importer):
@@ -64,7 +66,8 @@ class CargoloopImporter(Importer):
                 preferred = "background-color" in (cell.get("style") or "")
                 for vtype, k in CARGOLOOP_MULTIPLIERS.items():
                     self.land(yard, terminal_code(term_name), vtype, price * k, preferred=preferred,
-                              estimate=(k != 1.0), note="" if k == 1.0 else f"база × {k}")
+                              estimate=(k != 1.0 or vtype in ("snowmobile", "jetski")),
+                              note="" if k == 1.0 and vtype not in ("snowmobile", "jetski") else f"база × {k}")
 
     def load(self, source: str):
         if source.startswith("http"):

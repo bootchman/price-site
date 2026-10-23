@@ -262,7 +262,7 @@ class TariffTests(TestCase):
         o = self.best("VS Brothers")
         self.assertEqual(int(o.sea.amount), 400)  # 1600 / 4 вместо 500 из калькулятора
         self.assertIn("море задано вручную", o.notes)
-        self.assertEqual(Rate.objects.filter(price_list__is_manual=True).count(), 5)  # все типы
+        self.assertEqual(Rate.objects.filter(price_list__is_manual=True).count(), 4)  # все легковые
         self.assertEqual(self.vs.tariff_changes.count(), 1)
 
     def test_full_cost_with_charges_and_eur(self):
@@ -331,6 +331,18 @@ class TariffTests(TestCase):
         # 40'HC: 950 + 200/4 = 1000; 45'HC: 950 + 400/4 = 1050 → выигрывает 40'HC
         self.assertEqual({k: int(v) for k, v in o.by_container.items()}, {"40'HC": 1000, "45'HC": 1050})
         self.assertEqual(o.sea.container, "40HC")
+
+    def test_unit_price_independent_of_container(self):
+        moto = VehicleType.objects.get(code="moto")
+        sav = Terminal.objects.get(code="SAV")
+        self.client.post(f"/tariffs/{self.cl.pk}/sea/", {"terminal": sav.pk, "port": self.klj.pk, "container": "ANY",
+                                                          "vehicle_type": moto.pk, "unit": "container", "amount": "250"})
+        r = Rate.objects.get(price_list__is_manual=True)
+        self.assertEqual((r.container, int(r.amount)), ("ANY", 250))  # не делится на 4
+        full, _ = find_routes(self.yard, moto, self.klj)
+        cl = [o for o in full if o.land.price_list.provider.name == "Cargoloop" and o.land.to_terminal.code == "SAV"][0]
+        self.assertEqual((cl.sea.container, int(cl.total), cl.same_provider), ("ANY", 400 + 250, True))  # суша 500×0.8
+        self.assertEqual(cl.by_container, {})
 
     def test_pages_render(self):
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)

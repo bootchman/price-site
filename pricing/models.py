@@ -128,6 +128,8 @@ class PriceList(models.Model):
 
 
 CONTAINER_CHOICES = [("40HC", "40'HC"), ("45HC", "45'HC")]
+ANY_CONTAINER = "ANY"  # цена за единицу, не зависит ни от размера контейнера, ни от количества в нём
+RATE_CONTAINER_CHOICES = CONTAINER_CHOICES + [(ANY_CONTAINER, "не зависит от контейнера")]
 
 
 class Rate(models.Model):
@@ -141,7 +143,7 @@ class Rate(models.Model):
     to_terminal = models.ForeignKey(Terminal, null=True, blank=True, on_delete=models.CASCADE, related_name="+")
     to_port = models.ForeignKey(DestinationPort, null=True, blank=True, on_delete=models.CASCADE)
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.PROTECT)
-    container = models.CharField(max_length=5, choices=CONTAINER_CHOICES, default="40HC")  # для моря
+    container = models.CharField(max_length=5, choices=RATE_CONTAINER_CHOICES, default="40HC")  # для моря
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default="USD")
     is_preferred = models.BooleanField(default=False)  # «предпочтительный» склад оператора
