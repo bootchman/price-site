@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Вход — InterAlex Price{% endblock %}
+{% block content %}
+<section class="card login">
+  <h1>Вход</h1>
+  <p class="muted">Сайт сравнения прайсов операторов доставки. Вход — через Telegram, по списку доступа.</p>
+  <button id="start" class="btn">Войти через Telegram</button>
+  <div id="waiting" class="hidden">
+    <p>Откройте бота <b>@{{ bot_username }}</b>, нажмите <b>Start</b> и поделитесь контактом.</p>
+    <p><a id="link" class="btn btn-outline" target="_blank" rel="noopener">Открыть бота</a></p>
+    <p class="muted" id="state">Ждём подтверждения…</p>
+  </div>
+</section>
+<script>
+(function () {
+  const btn = document.getElementById("start");
+  const waiting = document.getElementById("waiting");
+  const link = document.getElementById("link");
+  const state = document.getElementById("state");
+  const csrf = document.cookie.split("; ").find(c => c.startsWith("csrftoken="));
+  let timer = null;
+
+  async function poll() {
+    const r = await fetch("{% url 'login_status' %}", {credentials: "same-origin"});
+    const d = await r.json();
+    if (d.status === "ok") { window.location = d.redirect; return; }
+    if (d.status === "denied") { state.textContent = d.message; stop(); return; }
+    if (d.status === "expired" || d.status === "none") { state.textContent = "Ссылка устарела. Нажмите «Войти через Telegram» ещё раз."; stop(); return; }
+  }
+  function stop() { clearInterval(timer); btn.disabled = false; }
+
+  btn.addEventListener("click", async function () {
+    btn.disabled = true;
+    const r = await fetch("{% url 'login_start' %}", {
+      method: "POST", credentials: "same-origin",
+      headers: {"X-CSRFToken": csrf ? csrf.split("=")[1] : ""}
+    });
+    const d = await r.json();
+    link.href = d.link;
+    waiting.classList.remove("hidden");
+    state.textContent = "Ждём подтверждения…";
+    window.open(d.link, "_blank", "noopener");
+    clearInterval(timer);
+    timer = setInterval(poll, 2000);
+    setTimeout(stop, d.ttl * 1000);
+  });
+})();
+</script>
+{% endblock %}

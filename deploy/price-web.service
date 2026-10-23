@@ -1,0 +1,22 @@
+[Unit]
+Description=price.interalex.pro (gunicorn)
+After=network.target
+
+[Service]
+User=price
+Group=price
+WorkingDirectory=/srv/price/app
+EnvironmentFile=/root/iapro/price-site.env
+Environment=PRICE_DATA_DIR=/srv/price/data PRICE_STATIC_ROOT=/srv/price/static
+ExecStart=/srv/price/venv/bin/gunicorn price_site.wsgi:application --bind 127.0.0.1:8020 --workers 2 --timeout 120 --access-logfile -
+Restart=always
+RestartSec=3
+MemoryMax=600M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/srv/price/data
+
+[Install]
+WantedBy=multi-user.target
