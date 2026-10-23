@@ -33,44 +33,48 @@
   {% if full %}
     {% if incomplete %}
       <div class="notice notice-error">
-        <b>Итоги неполные.</b> У морских операторов не заданы статьи расходов — сейчас они считаются как 0, и такие варианты выглядят дешевле:
+        <b>Итоги неполные.</b> У операторов не заданы статьи расходов — сейчас они считаются как 0, и такие варианты выглядят дешевле:
         {% for i in incomplete %}<a href="{% url 'tariff_provider' i.provider.pk %}">{{ i.provider.name }}</a> ({{ i.missing|join:", " }}){% if not forloop.last %}; {% endif %}{% endfor %}.
         Заполните их во вкладке «Тарифы операторов» (0 — если оператор не берёт).
       </div>
     {% endif %}
-    <p class="muted small">Итого — полная стоимость за машину (лучший из контейнеров 40'HC и 45'HC, по 4 машины): суша + море + услуги + material fee + экспедирование{% if fuel != "ice" %} + hazardous fee{% endif %}{% if eur %} (EUR по курсу {{ eur.eur_usd }}){% endif %}. Цифры из прайсов и из вкладки «Тарифы операторов».</p>
+    <p class="muted small">Каждая строка — один оператор: его суша, его море и его статьи расходов. Итого — полная стоимость за машину (лучший из контейнеров оператора 40'HC и 45'HC, по 4 машины): суша + море + услуги + material fee + экспедирование{% if fuel != "ice" %} + hazardous fee{% endif %}{% if eur %} (EUR по курсу {{ eur.eur_usd }}){% endif %}. Цифры из прайсов и из вкладки «Тарифы операторов».</p>
     <div class="table-wrap"><table class="data">
-      <thead><tr><th>#</th><th>Итого, за 1 машину</th><th class="left">Суша</th><th class="left">Склад</th><th class="left">Море</th><th>Контейнер</th><th class="left">Прочие расходы</th><th class="left">Примечания</th></tr></thead>
+      <thead><tr><th>#</th><th>Итого, за 1 машину</th><th class="left">Оператор</th><th class="left">Суша</th><th class="left">Склад</th><th class="left">Море</th><th>Контейнер</th><th class="left">Прочие расходы</th><th class="left">Примечания</th></tr></thead>
       <tbody>
       {% for o in full %}
         <tr class="{% if forloop.first %}best{% endif %}">
           <td class="num">{{ forloop.counter }}</td>
           <td class="num"><b>${{ o.total|floatformat:0 }}</b><br><span class="muted small">суша + море ${{ o.base_total|floatformat:0 }}</span></td>
-          <td>{{ o.land.price_list.provider.name }} <span class="num">${{ o.land.amount|floatformat:0 }}</span>{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
+          <td class="label">{{ o.land.price_list.provider.name }}</td>
+          <td><span class="num">${{ o.land.amount|floatformat:0 }}</span>{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
           <td><span class="term term-{{ o.land.to_terminal.code }}">{{ o.land.to_terminal.name }}</span></td>
-          <td>{{ o.sea.price_list.provider.name }} <span class="num">${{ o.sea.amount|floatformat:0 }}</span>{% if o.same_provider %} <span class="tag tag-ok">один оператор</span>{% endif %}</td>
+          <td><span class="num">${{ o.sea.amount|floatformat:0 }}</span></td>
           <td class="num"><b>{{ o.container }}</b><br><span class="muted small">{% if not o.by_container %}цена за единицу{% endif %}{% for name, total in o.by_container.items %}{{ name }}: {% if total %}${{ total|floatformat:0 }}{% else %}нет ставки{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
-          <td class="small">{% for e in o.extras %}<span class="tag {% if e.manual %}tag-warn{% endif %}">{{ e.provider }}: {{ e.label }}</span> {% endfor %}
+          <td class="small">{% for e in o.extras %}<span class="tag {% if e.manual %}tag-warn{% endif %}">{{ e.label }}</span> {% endfor %}
             {% if o.missing %}<span class="tag tag-danger">нет данных: {{ o.missing|join:", " }}</span>{% endif %}</td>
           <td class="muted small">{{ o.notes|join:"; " }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table></div>
-    <p class="muted small">«нет данных» — у морского оператора не задана статья; заполните её во вкладке «Тарифы операторов» (0 — если не берёт). Пока не задано, итог может быть занижен.</p>
+    <p class="muted small">«нет данных» — у оператора не задана статья; заполните её во вкладке «Тарифы операторов» (0 — если не берёт). Пока не задано, итог может быть занижен.</p>
   {% elif not has_sea %}
     <div class="notice">Морских ставок до порта {{ port.name }} пока нет — нужен прайс на море до этого порта.</div>
   {% else %}
-    <div class="notice">Для этой площадки нет полного маршрута до {{ port.name }}: склады, куда её везут, не совпадают со складами, откуда есть море.</div>
+    <div class="notice">Ни у одного оператора нет и суши, и своего моря для этой площадки до {{ port.name }}. Ниже — у кого есть только суша.</div>
   {% endif %}
 
   {% if land_only %}
-    <h3 class="section">Суша без морской ставки до {{ port.name }}</h3>
+    <h3 class="section">Нет моря у оператора — в подбор не попали</h3>
+    <p class="muted small">Суша есть, но своего моря до {{ port.name }} у оператора нет. Задайте море в карточке оператора во вкладке «Тарифы операторов».</p>
     <div class="table-wrap"><table class="data">
-      <thead><tr><th class="left">Оператор</th><th class="left">Склад</th><th>Суша</th><th class="left"></th></tr></thead>
-      <tbody>{% for r in land_only %}
-        <tr><td>{{ r.price_list.provider.name }}</td><td><span class="term term-{{ r.to_terminal.code }}">{{ r.to_terminal.name }}</span></td><td class="num">${{ r.amount|floatformat:0 }}</td>
-        <td class="muted small">{% if r.is_preferred %}предпочт. склад{% endif %}{% if r.is_estimate %} {{ r.note }}{% endif %}</td></tr>
+      <thead><tr><th class="left">Оператор</th><th class="left">Склад</th><th>Суша</th><th class="left">Чего не хватает</th></tr></thead>
+      <tbody>{% for x in land_only %}
+        <tr><td class="label"><a href="{% url 'tariff_provider' x.land.price_list.provider.pk %}">{{ x.land.price_list.provider.name }}</a></td>
+        <td><span class="term term-{{ x.land.to_terminal.code }}">{{ x.land.to_terminal.name }}</span></td>
+        <td class="num">${{ x.land.amount|floatformat:0 }}</td>
+        <td class="muted small">{{ x.reason }}{% if x.land.is_preferred %}; предпочт. склад{% endif %}{% if x.land.is_estimate %}; {{ x.land.note }}{% endif %}</td></tr>
       {% endfor %}</tbody>
     </table></div>
   {% endif %}

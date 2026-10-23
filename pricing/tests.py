@@ -90,20 +90,18 @@ class ImportAndRouteTests(TestCase):
         sea = Rate.objects.get(stage="sea", from_terminal__code="SAV", vehicle_type__code="pickup")
         self.assertEqual(sea.amount, Decimal("900"))  # 1350 − 450 → надбавка 400 в море
 
-    def test_route_combines_providers(self):
+    def test_route_is_single_operator_package(self):
         self.import_cargoloop()
         self.import_vs()
         yard = Yard.objects.get()
         sedan = VehicleType.objects.get(code="sedan")
         klj = DestinationPort.objects.get(code="KLJ")
         full, land_only = find_routes(yard, sedan, klj)
-        totals = [(o.land.price_list.provider.name, o.land.to_terminal.code, int(o.total), o.same_provider) for o in full]
-        # Savannah: суша VS 450 / Cargoloop 500 + море VS 500; Elizabeth: VS 850 / Cargoloop 900 + море 550
-        self.assertEqual(totals[0], ("VS Brothers", "SAV", 950, True))
-        self.assertIn(("Cargoloop", "SAV", 1000, False), totals)
-        self.assertIn(("Cargoloop", "ELZ", 1450, False), totals)
-        self.assertEqual(len(totals), len({(t[0], t[1]) for t in totals}))  # одна строка на вариант суши
-        self.assertEqual({r.to_terminal.code for r in land_only}, {"HOU", "LAX", "IND"})
+        rows = [(o.land.price_list.provider.name, o.sea.price_list.provider.name, o.land.to_terminal.code, int(o.total))
+                for o in full]
+        # Только пакеты VS (суша + море VS); Cargoloop без своего моря — в «нет моря у оператора»
+        self.assertEqual(rows, [("VS Brothers", "VS Brothers", "SAV", 950), ("VS Brothers", "VS Brothers", "ELZ", 1400)])
+        self.assertEqual({(x.land.price_list.provider.name, x.reason) for x in land_only}, {("Cargoloop", "нет своего моря до порта Клайпеда")})
 
     def test_sea_from_two_vs_files_not_duplicated(self):
         self.import_cargoloop()
@@ -124,7 +122,7 @@ class ImportAndRouteTests(TestCase):
         first.refresh_from_db()
         self.assertEqual((first.status, second.status), (PriceList.ARCHIVED, PriceList.PUBLISHED))
 
-    def test_atlantic_new_york_matches_elizabeth_sea(self):
+    def test_atlantic_new_york_matches_own_elizabeth_sea(self):
         self.import_vs()
         path = TMP / "atl.xlsx"
         wb = openpyxl.Workbook()
@@ -141,25 +139,16 @@ class ImportAndRouteTests(TestCase):
         suv = Rate.objects.get(price_list=pl, vehicle_type__code="suv")
         self.assertTrue(suv.is_estimate)
         yard = Yard.objects.get(name_key="MOBILE SOUTH")
-        full, _ = find_routes(yard, VehicleType.objects.get(code="sedan"), DestinationPort.objects.get(code="KLJ"))
+        sedan, klj = VehicleType.objects.get(code="sedan"), DestinationPort.objects.get(code="KLJ")
+        _, land_only = find_routes(yard, sedan, klj)
+        self.assertIn("Atlantic", {x.land.price_list.provider.name for x in land_only})  # моря VS не берём
+        from pricing.tariffs import manual_list
+        Rate.objects.create(price_list=manual_list(pl.provider), stage="sea", from_terminal=Terminal.objects.get(code="ELZ"),
+                            to_port=klj, vehicle_type=sedan, amount=Decimal("560"))
+        full, _ = find_routes(yard, sedan, klj)
         atl = [o for o in full if o.land.price_list.provider.name == "Atlantic"][0]
-        self.assertEqual((int(atl.total), atl.sea.from_terminal.code), (850, "ELZ"))  # 300 + 550
+        self.assertEqual((int(atl.total), atl.sea.price_list.provider.name), (860, "Atlantic"))  # 300 + своё море 560
         self.assertIn("New York ≈ Elizabeth, NJ", "; ".join(atl.notes))
-
-    def test_city_and_prefix_fallback(self):
-        self.import_cargoloop()  # MOBILE SOUTH, город Theodore
-        path = TMP / "s101b.json"
-        path.write_text(json.dumps([
-            ["State", "Location, from", "Warehouse - Loading Port", "101"],
-            ["USA - AL", "THEODORE", "Savannah, GA", "480"],
-            ["USA - AL", "MOBILE", "Savannah, GA", "490"],
-        ]), encoding="utf-8")
-        imp = providers.Shipper101Importer("t", str(path))
-        imp.load(str(path), "Copart")
-        pl = imp.save()
-        self.assertEqual(pl.stats.get("площадок найдено по городу"), 1)
-        self.assertEqual(pl.stats.get("новых площадок"), 1)  # «MOBILE» ≠ «MOBILE SOUTH»
-        self.assertEqual(Yard.objects.count(), 2)
 
     def test_aml(self):
         self.import_cargoloop()
@@ -187,6 +176,21 @@ class ImportAndRouteTests(TestCase):
         self.assertEqual((int(full[0].base_total), int(full[0].total)), (900, 1075))  # + услуги AML 175
         self.assertTrue(full[0].same_provider)
 
+    def test_city_and_prefix_fallback(self):
+        self.import_cargoloop()  # MOBILE SOUTH, город Theodore
+        path = TMP / "s101b.json"
+        path.write_text(json.dumps([
+            ["State", "Location, from", "Warehouse - Loading Port", "101"],
+            ["USA - AL", "THEODORE", "Savannah, GA", "480"],
+            ["USA - AL", "MOBILE", "Savannah, GA", "490"],
+        ]), encoding="utf-8")
+        imp = providers.Shipper101Importer("t", str(path))
+        imp.load(str(path), "Copart")
+        pl = imp.save()
+        self.assertEqual(pl.stats.get("площадок найдено по городу"), 1)
+        self.assertEqual(pl.stats.get("новых площадок"), 1)  # «MOBILE» ≠ «MOBILE SOUTH»
+        self.assertEqual(Yard.objects.count(), 2)
+
     def test_shipper101(self):
         path = TMP / "s101.json"
         path.write_text(json.dumps([
@@ -213,7 +217,7 @@ class ImportAndRouteTests(TestCase):
         with mock.patch("accounts.middleware.is_allowed", return_value=True):
             resp = self.client.get("/", {"auction": yard.auction_id, "yard": yard.id, "vt": "sedan", "port": "KLJ"})
             self.assertContains(resp, "$950")
-            self.assertContains(resp, "один оператор")
+            self.assertContains(resp, "Нет моря у оператора")
             self.assertEqual(self.client.get("/operators/").status_code, 200)
 
 
@@ -309,11 +313,16 @@ class TariffTests(TestCase):
         self.assertFalse(Charge.objects.filter(pk__in=ids).exists())
         self.assertIn("Удалено из прайса", self.vs.tariff_changes.first().description)
 
-    def test_land_operator_charge(self):
+    def test_operator_charges_only_from_same_operator(self):
+        sav = Terminal.objects.get(code="SAV")
+        self.client.post(f"/tariffs/{self.cl.pk}/sea/", {"terminal": sav.pk, "port": self.klj.pk, "container": "40HC",
+                                                          "vehicle_type": self.sedan.pk, "unit": "car", "amount": "520"})
         self.client.post(f"/tariffs/{self.cl.pk}/charge/", {"category": "services", "amount": "30",
                                                              "currency": "USD", "unit": "car", "applies_on": "land"})
-        o = self.best("Cargoloop")  # суша Cargoloop 500 + море VS 500 + услуги Cargoloop 30
-        self.assertEqual(int(o.total), 1030)
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "services", "amount": "99",
+                                                             "currency": "USD", "unit": "car", "applies_on": "sea"})
+        o = self.best("Cargoloop")  # суша Cargoloop 500 + море Cargoloop 520 + услуги Cargoloop 30; услуги VS не берутся
+        self.assertEqual((int(o.total), o.sea.price_list.provider.name), (1050, "Cargoloop"))
 
     def test_delete_manual_restores_price(self):
         sav = Terminal.objects.get(code="SAV")

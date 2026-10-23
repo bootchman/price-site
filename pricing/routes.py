@@ -42,58 +42,66 @@ def published(qs):
 
 
 def _extras(option, charges, vehicle_type, port, eur, fuel="ice"):
-    sea_pid = option.sea.price_list.provider_id
-    land_pid = option.land.price_list.provider_id
-    roles = [(sea_pid, {Charge.SEA_STAGE, Charge.ANY_STAGE})]
-    if land_pid != sea_pid:
-        roles.append((land_pid, {Charge.LAND_STAGE, Charge.ANY_STAGE}))
-    for pid, stages in roles:
-        by_cat = charges.get(pid, {})
-        cats = CATEGORIES + ([Charge.HAZARD] if fuel in ("electric", "hybrid") else [])
-        for cat in cats:
-            items = applicable(by_cat.get(cat, []), vehicle_type, port, stages, option.sea.container, fuel)
-            if pid == sea_pid and not items:
-                option.missing.append(CATEGORY_NAMES[cat])
-            for c in items:
-                amount = per_car(c)
-                sign = "€" if c.currency == "EUR" else "$"
-                label = f"{CATEGORY_NAMES[cat]} {sign}{amount:.0f}"
-                if c.currency == "EUR":
-                    if eur is None:
-                        option.missing.append(f"{CATEGORY_NAMES[cat]} (нет курса EUR)")
-                        continue
-                    amount = amount * eur.eur_usd
-                    label += f" ≈ ${amount:.0f}"
-                option.extras.append(Extra(cat, c.price_list.provider.name, amount.quantize(Decimal("1")), label,
-                                           c.price_list.is_manual))
+    """Статьи расходов того же оператора (суша и море у него же)."""
+    pid = option.sea.price_list.provider_id
+    stages = {Charge.SEA_STAGE, Charge.LAND_STAGE, Charge.ANY_STAGE}
+    by_cat = charges.get(pid, {})
+    cats = CATEGORIES + ([Charge.HAZARD] if fuel in ("electric", "hybrid") else [])
+    for cat in cats:
+        items = applicable(by_cat.get(cat, []), vehicle_type, port, stages, option.sea.container, fuel)
+        if not items:
+            option.missing.append(CATEGORY_NAMES[cat])
+        for c in items:
+            amount = per_car(c)
+            sign = "€" if c.currency == "EUR" else "$"
+            label = f"{CATEGORY_NAMES[cat]} {sign}{amount:.0f}"
+            if c.currency == "EUR":
+                if eur is None:
+                    option.missing.append(f"{CATEGORY_NAMES[cat]} (нет курса EUR)")
+                    continue
+                amount = amount * eur.eur_usd
+                label += f" ≈ ${amount:.0f}"
+            option.extras.append(Extra(cat, c.price_list.provider.name, amount.quantize(Decimal("1")), label,
+                                       c.price_list.is_manual))
+
+
+@dataclass
+class LandOnly:
+    """Суша оператора, для которой у него же нет моря до выбранного порта."""
+    land: Rate
+    reason: str
 
 
 def find_routes(yard, vehicle_type, port, fuel="ice"):
-    """Возвращает (варианты по возрастанию полной стоимости, суша без морской ставки до этого порта)."""
+    """Пакеты операторов: суша, море и статьи расходов — у одного оператора, без смешивания.
+
+    Возвращает (варианты по возрастанию полной стоимости — по строке на каждый вариант суши,
+                суша без моря у того же оператора)."""
     land_rates = list(published(Rate.objects.filter(stage=Rate.LAND, yard=yard, vehicle_type=vehicle_type)))
-    sea_by_group = {}
+    sea_by_key = {}  # (оператор, группа склада) → морские ставки этого оператора
+    sea_providers = set()
     for s in effective_sea(port, vehicle_type).values():
-        sea_by_group.setdefault(s.from_terminal.group, []).append(s)
-    provider_ids = {r.price_list.provider_id for r in land_rates}
-    provider_ids |= {s.price_list.provider_id for seas in sea_by_group.values() for s in seas}
-    charges = effective_charges(provider_ids)
+        sea_by_key.setdefault((s.price_list.provider_id, s.from_terminal.group), []).append(s)
+        sea_providers.add(s.price_list.provider_id)
+    charges = effective_charges({r.price_list.provider_id for r in land_rates})
     eur = latest_eur_usd()
 
     full, land_only = [], []
     for land in land_rates:
-        seas = sea_by_group.get(land.to_terminal.group, [])
+        pid = land.price_list.provider_id
+        seas = sea_by_key.get((pid, land.to_terminal.group), [])
         if not seas:
-            land_only.append(land)
+            reason = f"нет своего моря от склада {land.to_terminal}" if pid in sea_providers else f"нет своего моря до порта {port}"
+            land_only.append(LandOnly(land, reason))
             continue
         candidates = []
         for sea in seas:
-            option = RouteOption(land=land, sea=sea, base_total=land.amount + sea.amount)
-            option.same_provider = land.price_list.provider_id == sea.price_list.provider_id
+            option = RouteOption(land=land, sea=sea, base_total=land.amount + sea.amount, same_provider=True)
             _extras(option, charges, vehicle_type, port, eur, fuel)
             option.total = option.base_total + sum((e.amount_usd for e in option.extras), Decimal(0))
             candidates.append(option)
-        # Лучшее море для этой суши — по полной стоимости (оба контейнера); при равной — тот же оператор.
-        candidates.sort(key=lambda o: (o.total, not o.same_provider))
+        # Контейнер — дешёвый из ставок этого же оператора (40'HC / 45'HC / цена за единицу)
+        candidates.sort(key=lambda o: o.total)
         best = candidates[0]
         if best.sea.container != ANY_CONTAINER:
             for code, name in CONTAINER_CHOICES:
@@ -107,11 +115,7 @@ def find_routes(yard, vehicle_type, port, fuel="ice"):
             best.notes.append("море задано вручную")
         if land.to_terminal_id != best.sea.from_terminal_id:
             best.notes.append(f"склад {land.to_terminal} ≈ {best.sea.from_terminal}")
-        others = [f"{o.sea.price_list.provider.name} {o.container} ${o.total:.0f}" for o in candidates[1:]
-                  if o.sea.price_list.provider_id != best.sea.price_list.provider_id]
-        if others:
-            best.notes.append("с морем другого оператора: " + ", ".join(dict.fromkeys(others)))
         full.append(best)
-    full.sort(key=lambda o: (o.total, bool(o.missing), not o.same_provider))
-    land_only.sort(key=lambda r: r.amount)
+    full.sort(key=lambda o: (o.total, bool(o.missing)))
+    land_only.sort(key=lambda x: (x.land.price_list.provider.name, x.land.amount))
     return full, land_only
