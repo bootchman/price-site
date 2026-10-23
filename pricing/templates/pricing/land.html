@@ -15,6 +15,10 @@
     <select name="vt">{% for v in vtypes %}<option value="{{ v.code }}" {% if v == vtype %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select>
   </label>
   <div class="wide checks">
+    <span class="checks-title">Операторы</span>
+    {% for p in providers %}<label class="check"><input type="checkbox" name="op" value="{{ p.id }}" {% if p.id in chosen_ops %}checked{% endif %}> {{ p.name }}</label>{% endfor %}
+  </div>
+  <div class="wide checks">
     <span class="checks-title">Склады</span>
     {% for g, name in groups_all %}<label class="check"><input type="checkbox" name="g" value="{{ g }}" {% if g in chosen %}checked{% endif %}> {{ name }}</label>{% endfor %}
   </div>

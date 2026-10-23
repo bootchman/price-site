@@ -4,7 +4,7 @@ from statistics import mean
 
 from django.shortcuts import render
 
-from .models import Auction, PriceList, Rate, Terminal, VehicleType
+from .models import Auction, PriceList, Provider, Rate, Terminal, VehicleType
 from .reference import AUCTIONS
 
 GROUP_ORDER = ["GA", "NJ", "TX", "CA", "FL", "IN", "IL", "VA", "WA", "QC", "ON", "HI", "AK"]
@@ -28,10 +28,13 @@ def land_compare(request):
     groups_all = [g for g in GROUP_ORDER if g in group_terms] + sorted(set(group_terms) - set(GROUP_ORDER))
     chosen = [g for g in request.GET.getlist("g") if g in group_terms] or DEFAULT_GROUPS
     state = request.GET.get("state", "")
+    providers = list(Provider.objects.filter(
+        price_lists__status=PriceList.PUBLISHED, price_lists__rates__stage=Rate.LAND).distinct().order_by("name"))
+    chosen_ops = [p.id for p in providers if str(p.id) in request.GET.getlist("op")] or [p.id for p in providers]
 
     rates = Rate.objects.filter(
         stage=Rate.LAND, price_list__status=PriceList.PUBLISHED, vehicle_type=vtype, yard__auction=auction,
-        to_terminal__group__in=chosen,
+        to_terminal__group__in=chosen, price_list__provider_id__in=chosen_ops,
     ).select_related("yard", "to_terminal", "price_list__provider")
     states = sorted(set(Rate.objects.filter(
         stage=Rate.LAND, price_list__status=PriceList.PUBLISHED, yard__auction=auction
@@ -116,5 +119,5 @@ def land_compare(request):
         "summary_rows": summary_rows,
         "auctions": auctions, "auction": auction, "vtypes": vtypes, "vtype": vtype,
         "groups_all": [(g, " / ".join(t.name.split(",")[0] for t in group_terms[g])) for g in groups_all],
-        "chosen": chosen, "states": states, "state": state, "columns": columns, "rows": rows, "summary": summary,
+        "chosen": chosen, "providers": providers, "chosen_ops": chosen_ops, "states": states, "state": state, "columns": columns, "rows": rows, "summary": summary,
     })

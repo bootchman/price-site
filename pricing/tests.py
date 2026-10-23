@@ -400,6 +400,13 @@ class TariffTests(TestCase):
         wins = {o["name"]: o["wins"] for o in ga["ops"]}
         self.assertEqual((ga["compared"], wins), (1, {"Cargoloop": 0, "VS Brothers": 1}))
 
+    def test_land_compare_operator_filter(self):
+        resp = self.client.get("/land/", {"auction": self.yard.auction_id, "vt": "sedan", "g": ["GA"], "op": [self.cl.pk]})
+        ga = [x for x in resp.context["summary"] if x["column"]["group"] == "GA"][0]
+        self.assertEqual([o["name"] for o in ga["ops"]], ["Cargoloop"])
+        self.assertEqual(ga["compared"], 0)  # один оператор — сравнивать не с кем, без зелёного/красного
+        self.assertNotIn("cell-min", resp.content.decode())
+
     def test_pages_render(self):
         TariffChange.objects.create(provider=self.vs, user=None, action="море", description="внесено системой")
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)
