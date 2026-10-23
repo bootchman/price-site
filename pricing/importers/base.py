@@ -106,12 +106,12 @@ class Importer:
             amount=Decimal(str(round(float(amount), 2))), is_preferred=preferred, is_estimate=estimate, note=note,
         ))
 
-    def sea(self, terminal_code, port_code, vtype, amount, estimate=False, note=""):
+    def sea(self, terminal_code, port_code, vtype, amount, estimate=False, note="", container="40HC"):
         if amount is None:
             return
         self.rates.append(Rate(
             stage=Rate.SEA, from_terminal=self.terminals[terminal_code], to_port=self.ports[port_code],
-            vehicle_type=self.vtypes[vtype], amount=Decimal(str(round(float(amount), 2))),
+            vehicle_type=self.vtypes[vtype], container=container, amount=Decimal(str(round(float(amount), 2))),
             is_estimate=estimate, note=note,
         ))
 

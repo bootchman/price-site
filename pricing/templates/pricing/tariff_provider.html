@@ -7,25 +7,26 @@
 
 <h2 class="section">Море — цена за 1 машину</h2>
 <div class="table-wrap"><table class="data">
-  <thead><tr><th class="left">Порт получения</th><th class="left">Тип машины</th>
+  <thead><tr><th class="left">Контейнер</th><th class="left">Порт получения</th><th class="left">Тип машины</th>
     {% for t in columns %}<th class="term-head term-{{ t.code }}">{{ t.name }}</th>{% endfor %}</tr></thead>
   <tbody>
   {% for row in matrix %}
     <tr>
-      <td class="label">{% ifchanged row.port %}{{ row.port.name }}{% endifchanged %}</td>
+      <td class="label">{% ifchanged row.container %}{{ row.container }}<br><span class="muted small">4 машины</span>{% endifchanged %}</td>
+      <td class="label">{% ifchanged row.container row.port %}{{ row.port.name }}{% endifchanged %}</td>
       <td class="label">{{ row.vtype.name }}</td>
       {% for r in row.cells %}<td class="num">{% if r %}${{ r.amount|floatformat:0 }}{% if r.price_list.is_manual %}<span class="dot-manual" title="задано вручную"></span>{% endif %}{% endif %}</td>{% endfor %}
     </tr>
-  {% empty %}<tr><td class="muted left" colspan="2">Морских ставок нет.</td></tr>{% endfor %}
+  {% empty %}<tr><td class="muted left" colspan="3">Морских ставок нет.</td></tr>{% endfor %}
   </tbody>
 </table></div>
 <p class="muted small"><span class="dot-manual"></span> — задано вручную (главнее прайса). Остальное — из прайса.</p>
 {% if manual_sea %}
   <h3 class="section">Ручные морские ставки</h3>
   <div class="table-wrap"><table class="data">
-    <thead><tr><th class="left">Склад США</th><th class="left">Порт получения</th><th class="left">Тип машины</th><th>За машину</th><th class="left">Примечание</th><th></th></tr></thead>
+    <thead><tr><th class="left">Контейнер</th><th class="left">Склад США</th><th class="left">Порт получения</th><th class="left">Тип машины</th><th>За машину</th><th class="left">Примечание</th><th></th></tr></thead>
     <tbody>{% for r in manual_sea %}
-      <tr><td><span class="term term-{{ r.from_terminal.code }}">{{ r.from_terminal.name }}</span></td><td>{{ r.to_port.name }}</td><td>{{ r.vehicle_type.name }}</td>
+      <tr><td class="label">{{ r.get_container_display }}</td><td><span class="term term-{{ r.from_terminal.code }}">{{ r.from_terminal.name }}</span></td><td>{{ r.to_port.name }}</td><td>{{ r.vehicle_type.name }}</td>
       <td class="num">${{ r.amount|floatformat:0 }}</td><td class="muted small">{{ r.note }}</td>
       <td><form method="post" action="{% url 'tariff_delete' provider.pk 'sea' r.pk %}">{% csrf_token %}<button class="link">удалить</button></form></td></tr>
     {% endfor %}</tbody>
@@ -33,6 +34,7 @@
 {% endif %}
 <h3 class="section">Задать море вручную</h3>
 <form method="post" action="{% url 'tariff_add_sea' provider.pk %}" class="card form-grid">{% csrf_token %}
+  <label>Контейнер<select name="container">{% for v, n in containers %}<option value="{{ v }}">{{ n }} (4 машины)</option>{% endfor %}</select></label>
   <label>Склад США<select name="terminal" required>{% for t in terminals %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}</select></label>
   <label>Порт получения<select name="port" required>{% for p in ports %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></label>
   <label>Тип машины<select name="vehicle_type"><option value="all">все типы одинаково</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
@@ -44,18 +46,18 @@
 
 <h2 class="section">Услуги, material fee, экспедирование</h2>
 <div class="table-wrap"><table class="data">
-  <thead><tr><th class="left">Статья</th><th class="left">Название</th><th>Сумма</th><th class="left">За</th><th class="left">Когда начисляется</th><th class="left">Порт</th><th class="left">Тип</th><th class="left">Источник</th><th></th></tr></thead>
+  <thead><tr><th class="left">Статья</th><th class="left">Название</th><th>Сумма</th><th class="left">За</th><th class="left">Контейнер</th><th class="left">Когда начисляется</th><th class="left">Порт</th><th class="left">Тип</th><th class="left">Источник</th><th></th></tr></thead>
   <tbody>
   {% for c, active in charges %}
     <tr class="{% if not active %}muted{% endif %}">
       <td class="label">{{ c.get_category_display|capfirst }}</td><td>{{ c.name }}</td>
       <td class="num">{% if c.currency == "EUR" %}€{% else %}${% endif %}{{ c.amount|floatformat:0 }}</td>
-      <td>{{ c.get_unit_display }}</td><td class="small">{{ c.get_applies_on_display }}</td>
+      <td>{{ c.get_unit_display }}</td><td>{{ c.get_container_display|default:"любой" }}</td><td class="small">{{ c.get_applies_on_display }}</td>
       <td>{{ c.to_port.name|default:"все" }}</td><td>{{ c.vehicle_type.name|default:"все" }}</td>
       <td>{% if c.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс</span>{% if not active %} <span class="small">заменено вручную</span>{% endif %}{% endif %}</td>
       <td>{% if c.price_list.is_manual %}<form method="post" action="{% url 'tariff_delete' provider.pk 'charge' c.pk %}">{% csrf_token %}<button class="link">удалить</button></form>{% endif %}</td>
     </tr>
-  {% empty %}<tr><td colspan="9" class="muted">Статей расходов нет — в подборе маршрута у оператора будет пометка «нет данных».</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="10" class="muted">Статей расходов нет — в подборе маршрута у оператора будет пометка «нет данных».</td></tr>{% endfor %}
   </tbody>
 </table></div>
 <h3 class="section">Задать статью расходов вручную</h3>
@@ -66,6 +68,7 @@
   <label>За<select name="unit"><option value="car">машину</option><option value="container">контейнер (÷ 4)</option></select></label>
   <label>Когда начисляется<select name="applies_on">{% for v, n in applies %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
   <label>Порт получения<select name="port"><option value="">все порты</option>{% for p in ports %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></label>
+  <label>Контейнер<select name="container"><option value="">любой</option>{% for v, n in containers %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
   <label>Тип машины<select name="vehicle_type"><option value="">все типы</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
   <label>Название<input name="name" placeholder="необязательно"></label>
   <label>Примечание<input name="note" placeholder="откуда цифра"></label>

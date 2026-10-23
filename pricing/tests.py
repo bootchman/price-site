@@ -311,6 +311,27 @@ class TariffTests(TestCase):
         self.client.post(f"/tariffs/{self.vs.pk}/sea/{manual.pk}/delete/")
         self.assertEqual(int(self.best("VS Brothers").sea.amount), 500)
 
+    def test_both_containers_cheaper_one_wins(self):
+        sav = Terminal.objects.get(code="SAV")
+        self.client.post(f"/tariffs/{self.vs.pk}/sea/", {"terminal": sav.pk, "port": self.klj.pk, "container": "45HC",
+                                                          "vehicle_type": "all", "unit": "container", "amount": "1800"})
+        o = self.best("VS Brothers")
+        self.assertEqual((o.sea.container, int(o.sea.amount), int(o.total)), ("45HC", 450, 900))
+        self.assertEqual({k: int(v) for k, v in o.by_container.items()}, {"40'HC": 950, "45'HC": 900})
+
+    def test_container_specific_charge(self):
+        sav = Terminal.objects.get(code="SAV")
+        self.client.post(f"/tariffs/{self.vs.pk}/sea/", {"terminal": sav.pk, "port": self.klj.pk, "container": "45HC",
+                                                          "vehicle_type": "all", "unit": "car", "amount": "500"})
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "material_fee", "amount": "400", "currency": "USD",
+                                                             "unit": "container", "applies_on": "sea", "container": "45HC"})
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "material_fee", "amount": "200", "currency": "USD",
+                                                             "unit": "container", "applies_on": "sea"})
+        o = self.best("VS Brothers")
+        # 40'HC: 950 + 200/4 = 1000; 45'HC: 950 + 400/4 = 1050 → выигрывает 40'HC
+        self.assertEqual({k: int(v) for k, v in o.by_container.items()}, {"40'HC": 1000, "45'HC": 1050})
+        self.assertEqual(o.sea.container, "40HC")
+
     def test_pages_render(self):
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)
         self.assertEqual(self.client.get(f"/tariffs/{self.vs.pk}/").status_code, 200)

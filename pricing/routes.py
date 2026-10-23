@@ -2,10 +2,11 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from .models import Charge, PriceList, Rate
+from .models import CONTAINER_CHOICES, Charge, PriceList, Rate
 from .tariffs import CATEGORIES, applicable, effective_charges, effective_sea, latest_eur_usd, per_car
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
+CONTAINER_NAMES = dict(CONTAINER_CHOICES)
 
 
 @dataclass
@@ -27,6 +28,11 @@ class RouteOption:
     missing: list = field(default_factory=list)  # статьи без данных у морского оператора
     same_provider: bool = False
     notes: list = field(default_factory=list)
+    by_container: dict = field(default_factory=dict)  # {«40'HC»: лучший итог или None, «45'HC»: …}
+
+    @property
+    def container(self):
+        return CONTAINER_NAMES.get(self.sea.container, self.sea.container) if self.sea else ""
 
 
 def published(qs):
@@ -44,7 +50,7 @@ def _extras(option, charges, vehicle_type, port, eur):
     for pid, stages in roles:
         by_cat = charges.get(pid, {})
         for cat in CATEGORIES:
-            items = applicable(by_cat.get(cat, []), vehicle_type, port, stages)
+            items = applicable(by_cat.get(cat, []), vehicle_type, port, stages, option.sea.container)
             if pid == sea_pid and not items:
                 option.missing.append(CATEGORY_NAMES[cat])
             for c in items:
@@ -85,9 +91,12 @@ def find_routes(yard, vehicle_type, port):
             _extras(option, charges, vehicle_type, port, eur)
             option.total = option.base_total + sum((e.amount_usd for e in option.extras), Decimal(0))
             candidates.append(option)
-        # Лучшее море для этой суши — по полной стоимости; при равной — тот же оператор.
+        # Лучшее море для этой суши — по полной стоимости (оба контейнера); при равной — тот же оператор.
         candidates.sort(key=lambda o: (o.total, not o.same_provider))
         best = candidates[0]
+        for code, name in CONTAINER_CHOICES:
+            in_cont = [o for o in candidates if o.sea.container == code]
+            best.by_container[name] = in_cont[0].total if in_cont else None
         if land.is_estimate:
             best.notes.append(f"суша: {land.note or 'оценка'}")
         if best.sea.is_estimate:
@@ -96,9 +105,10 @@ def find_routes(yard, vehicle_type, port):
             best.notes.append("море задано вручную")
         if land.to_terminal_id != best.sea.from_terminal_id:
             best.notes.append(f"склад {land.to_terminal} ≈ {best.sea.from_terminal}")
-        others = [f"{o.sea.price_list.provider.name} ${o.total:.0f}" for o in candidates[1:]]
+        others = [f"{o.sea.price_list.provider.name} {o.container} ${o.total:.0f}" for o in candidates[1:]
+                  if o.sea.price_list.provider_id != best.sea.price_list.provider_id]
         if others:
-            best.notes.append("с морем другого оператора: " + ", ".join(others))
+            best.notes.append("с морем другого оператора: " + ", ".join(dict.fromkeys(others)))
         full.append(best)
     full.sort(key=lambda o: (o.total, bool(o.missing), not o.same_provider))
     land_only.sort(key=lambda r: r.amount)

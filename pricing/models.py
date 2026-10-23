@@ -127,6 +127,9 @@ class PriceList(models.Model):
         return f"{self.provider} · {self.title}"
 
 
+CONTAINER_CHOICES = [("40HC", "40'HC"), ("45HC", "45'HC")]
+
+
 class Rate(models.Model):
     LAND, SEA = "land", "sea"
     STAGE_CHOICES = [(LAND, "суша"), (SEA, "море")]
@@ -138,6 +141,7 @@ class Rate(models.Model):
     to_terminal = models.ForeignKey(Terminal, null=True, blank=True, on_delete=models.CASCADE, related_name="+")
     to_port = models.ForeignKey(DestinationPort, null=True, blank=True, on_delete=models.CASCADE)
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.PROTECT)
+    container = models.CharField(max_length=5, choices=CONTAINER_CHOICES, default="40HC")  # для моря
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default="USD")
     is_preferred = models.BooleanField(default=False)  # «предпочтительный» склад оператора
@@ -167,6 +171,7 @@ class Charge(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     applies_on = models.CharField(max_length=8, choices=APPLIES_ON_CHOICES, default=SEA_STAGE)
     to_port = models.ForeignKey(DestinationPort, null=True, blank=True, on_delete=models.CASCADE)
+    container = models.CharField(max_length=5, choices=CONTAINER_CHOICES, blank=True, default="")  # пусто = любой
     name = models.CharField(max_length=200)
     applies_to = models.CharField(max_length=120, blank=True)  # порт / страна / «все»
     unit = models.CharField(max_length=12, choices=UNIT_CHOICES, default="car")

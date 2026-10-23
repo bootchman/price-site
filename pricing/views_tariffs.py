@@ -6,10 +6,11 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .models import Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType
+from .models import CONTAINER_CHOICES, Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType
 from .tariffs import CATEGORIES, CONTAINER_SLOTS, effective_charges, manual_list
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
+CONTAINER_NAMES = dict(CONTAINER_CHOICES)
 TERMINAL_ORDER = ["SAV", "ELZ", "NYC", "HOU", "LAX", "IND", "MTL", "MIA", "CHI", "ORF", "SEA", "YTO", "HNL", "ANC"]
 
 
@@ -49,11 +50,11 @@ def provider_page(request, pk):
     published = PriceList.objects.filter(provider=provider, status=PriceList.PUBLISHED)
     sea = (Rate.objects.filter(price_list__in=published, stage=Rate.SEA)
            .select_related("price_list", "from_terminal", "to_port", "vehicle_type")
-           .order_by("to_port__sort", "from_terminal__group", "vehicle_type__sort", "price_list__is_manual"))
+           .order_by("container", "to_port__sort", "from_terminal__group", "vehicle_type__sort", "price_list__is_manual"))
     # Действующая ставка: из прайса — самая дешёвая по ключу, ручная заменяет её
     from_price, manual = {}, {}
     for r in sea:
-        key = (r.from_terminal_id, r.to_port_id, r.vehicle_type_id)
+        key = (r.from_terminal_id, r.to_port_id, r.vehicle_type_id, r.container)
         target = manual if r.price_list.is_manual else from_price
         if key not in target or r.amount < target[key].amount:
             target[key] = r
@@ -65,15 +66,18 @@ def provider_page(request, pk):
     # Матрица как в прайсе Cargoloop: строки — порт получения и тип машины, колонки — склады
     order = {code: i for i, code in enumerate(TERMINAL_ORDER)}
     columns = sorted({r.from_terminal for r in effective.values()}, key=lambda t: (order.get(t.code, 99), t.name))
-    row_keys = sorted({(r.to_port, r.vehicle_type) for r in effective.values()}, key=lambda k: (k[0].sort, k[1].sort))
+    row_keys = sorted({(r.container, r.to_port, r.vehicle_type) for r in effective.values()},
+                      key=lambda k: (k[0], k[1].sort, k[2].sort))
     matrix = [
-        {"port": port, "vtype": vt, "cells": [effective.get((t.id, port.id, vt.id)) for t in columns]}
-        for port, vt in row_keys
+        {"container": CONTAINER_NAMES.get(c, c), "port": port, "vtype": vt,
+         "cells": [effective.get((t.id, port.id, vt.id, c)) for t in columns]}
+        for c, port, vt in row_keys
     ]
     manual_sea = [r for r in effective.values() if r.price_list.is_manual]
     return render(request, "pricing/tariff_provider.html", {
         "provider": provider, "columns": columns, "matrix": matrix,
-        "manual_sea": sorted(manual_sea, key=lambda r: (r.to_port.sort, order.get(r.from_terminal.code, 99), r.vehicle_type.sort)),
+        "manual_sea": sorted(manual_sea, key=lambda r: (r.container, r.to_port.sort, order.get(r.from_terminal.code, 99), r.vehicle_type.sort)),
+        "containers": CONTAINER_CHOICES,
         "overridden": overridden,
         "charges": [(c, c.price_list.is_manual or c.category not in manual_cats) for c in charges],
         "terminals": sorted(Terminal.objects.all(), key=lambda t: (order.get(t.code, 99), t.name)), "ports": DestinationPort.objects.all(),
@@ -105,17 +109,20 @@ def add_sea(request, pk):
         messages.error(request, "Море: укажите склад, порт, тип машины и сумму.")
         return redirect("tariff_provider", pk=pk)
     unit = request.POST.get("unit", "car")
+    container = request.POST.get("container") if request.POST.get("container") in CONTAINER_NAMES else "40HC"
     note = request.POST.get("note", "").strip()[:150]
     per_car = amount / CONTAINER_SLOTS if unit == "container" else amount
     if unit == "container":
         note = f"контейнер ${amount:.0f} / {CONTAINER_SLOTS}" + (f"; {note}" if note else "")
     pl = manual_list(provider)
     for v in vtypes:
-        Rate.objects.filter(price_list=pl, stage=Rate.SEA, from_terminal=terminal, to_port=port, vehicle_type=v).delete()
+        Rate.objects.filter(price_list=pl, stage=Rate.SEA, from_terminal=terminal, to_port=port, vehicle_type=v,
+                            container=container).delete()
         Rate.objects.create(price_list=pl, stage=Rate.SEA, from_terminal=terminal, to_port=port, vehicle_type=v,
-                            amount=per_car.quantize(Decimal("0.01")), note=note or "задано вручную")
+                            container=container, amount=per_car.quantize(Decimal("0.01")), note=note or "задано вручную")
     types = "все типы" if vt == "all" else vtypes[0].name
-    _log(request, provider, "море", f"Море {terminal} → {port}, {types}: ${per_car:.0f} за машину. {note}")
+    _log(request, provider, "море", f"Море {CONTAINER_NAMES[container]} {terminal} → {port}, {types}: "
+                                    f"${per_car:.0f} за машину. {note}")
     messages.success(request, "Морская ставка сохранена.")
     return redirect("tariff_provider", pk=pk)
 
@@ -134,15 +141,18 @@ def add_charge(request, pk):
     port = DestinationPort.objects.filter(pk=request.POST.get("port") or None).first()
     vtype = VehicleType.objects.filter(pk=request.POST.get("vehicle_type") or None).first()
     name = request.POST.get("name", "").strip()[:200] or CATEGORY_NAMES[category].capitalize()
+    container = request.POST.get("container") if request.POST.get("container") in CONTAINER_NAMES else ""
     pl = manual_list(provider)
-    Charge.objects.filter(price_list=pl, category=category, name=name, to_port=port, vehicle_type=vtype).delete()
+    Charge.objects.filter(price_list=pl, category=category, name=name, to_port=port, vehicle_type=vtype,
+                          container=container).delete()
     Charge.objects.create(price_list=pl, category=category, name=name, amount=amount, currency=currency, unit=unit,
-                          applies_on=applies_on, to_port=port, vehicle_type=vtype,
+                          applies_on=applies_on, to_port=port, vehicle_type=vtype, container=container,
                           applies_to=port.name if port else "все порты", note=request.POST.get("note", "").strip()[:200])
     sign = "€" if currency == "EUR" else "$"
     _log(request, provider, CATEGORY_NAMES[category],
          f"{name}: {sign}{amount:.0f} {'за контейнер' if unit == 'container' else 'за машину'}"
-         f"{', ' + port.name if port else ''}{', ' + vtype.name if vtype else ''}")
+         f"{', ' + port.name if port else ''}{', ' + vtype.name if vtype else ''}"
+         f"{', ' + CONTAINER_NAMES[container] if container else ''}")
     messages.success(request, "Статья расходов сохранена.")
     return redirect("tariff_provider", pk=pk)
 
@@ -153,7 +163,7 @@ def delete_manual(request, pk, kind, item_id):
     model = Rate if kind == "sea" else Charge
     obj = get_object_or_404(model, pk=item_id, price_list__provider=provider, price_list__is_manual=True)
     if kind == "sea":
-        desc = f"Удалено море {obj.from_terminal} → {obj.to_port}, {obj.vehicle_type}: ${obj.amount:.0f}"
+        desc = f"Удалено море {obj.get_container_display()} {obj.from_terminal} → {obj.to_port}, {obj.vehicle_type}: ${obj.amount:.0f}"
     else:
         desc = f"Удалено: {obj.name} {obj.amount:.0f} {obj.currency}"
     obj.delete()

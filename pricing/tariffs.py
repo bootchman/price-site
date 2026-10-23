@@ -16,13 +16,13 @@ def manual_list(provider) -> PriceList:
 
 
 def effective_sea(port, vehicle_type):
-    """{(оператор, склад): Rate} — ручная ставка заменяет ставку из прайса; из прайса — самая дешёвая."""
+    """{(оператор, склад, контейнер): Rate} — ручная ставка заменяет ставку из прайса; из прайса — самая дешёвая."""
     rates = Rate.objects.filter(
         stage=Rate.SEA, to_port=port, vehicle_type=vehicle_type, price_list__status=PriceList.PUBLISHED
     ).select_related("price_list__provider", "from_terminal", "to_port", "vehicle_type")
     manual, from_price = {}, {}
     for r in rates:
-        key = (r.price_list.provider_id, r.from_terminal_id)
+        key = (r.price_list.provider_id, r.from_terminal_id, r.container)
         target = manual if r.price_list.is_manual else from_price
         if key not in target or r.amount < target[key].amount:
             target[key] = r
@@ -43,7 +43,7 @@ def effective_charges(provider_ids):
         # Одна и та же статья может прийти из нескольких прайсов оператора (AML: Copart и IAAI) — считаем один раз
         unique, seen = [], set()
         for c in parts["manual"] or parts["price"]:
-            key = (c.name, c.amount, c.currency, c.unit, c.applies_on, c.to_port_id, c.vehicle_type_id)
+            key = (c.name, c.amount, c.currency, c.unit, c.applies_on, c.to_port_id, c.vehicle_type_id, c.container)
             if key not in seen:
                 seen.add(key)
                 unique.append(c)
@@ -62,9 +62,13 @@ def per_car(charge) -> Decimal:
     return amount
 
 
-def applicable(charges, vehicle_type, port, stages):
-    """Статьи одной категории, которые относятся к этой машине, порту и роли оператора."""
-    items = [c for c in charges if c.applies_on in stages and (c.to_port_id is None or c.to_port_id == port.id)]
+def applicable(charges, vehicle_type, port, stages, container="40HC"):
+    """Статьи одной категории, которые относятся к этой машине, порту, контейнеру и роли оператора."""
+    items = [c for c in charges if c.applies_on in stages and (c.to_port_id is None or c.to_port_id == port.id)
+             and c.container in ("", container)]
+    specific_cont = [c for c in items if c.container == container]  # ставка для этого контейнера главнее общей
+    if specific_cont:
+        items = specific_cont
     specific = [c for c in items if c.vehicle_type_id == vehicle_type.id]
     if specific:
         return specific
