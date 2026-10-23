@@ -407,6 +407,11 @@ class TariffTests(TestCase):
         self.assertEqual(ga["compared"], 0)  # один оператор — сравнивать не с кем, без зелёного/красного
         self.assertNotIn("cell-min", resp.content.decode())
 
+    def test_land_shares_sum_to_100_with_ties(self):
+        from pricing.views_land import _percent_shares
+        self.assertEqual(_percent_shares([10.5, 10.5, 24], 45), [23, 23, 54])
+        self.assertEqual(sum(_percent_shares([1 / 3, 1 / 3, 1 / 3], 1)), 100)
+
     def test_pages_render(self):
         TariffChange.objects.create(provider=self.vs, user=None, action="море", description="внесено системой")
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)

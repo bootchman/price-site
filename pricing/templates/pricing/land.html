@@ -27,7 +27,7 @@
 
 {% if summary %}
 <h2 class="section">Сводка: кто дешевле по суше</h2>
-<p class="muted small">«Сравнимых» — площадки, где по этому складу есть цены минимум у двух операторов и они различаются. «Дешевле» — сколько раз оператор был самым дешёвым на таких площадках. «Средняя» — средняя цена оператора на сравнимых площадках, где он есть.</p>
+<p class="muted small">«Сравнимых» — площадки, где по этому складу есть цены минимум у двух операторов и они различаются. «Дешевле» — доля сравнимых площадок, где оператор самый дешёвый (в сумме 100%; если минимальная цена одинакова у нескольких, площадка делится между ними поровну), рядом — число площадок, где он один самый дешёвый, и «вничью». «Средняя» — средняя цена оператора на сравнимых площадках, где он есть.</p>
 <div class="table-wrap"><table class="data">
   <thead>
     <tr><th class="left" rowspan="2">Оператор</th>
@@ -38,7 +38,7 @@
     <tr><td class="label left">{{ r.name }}</td>
       {% for o in r.cells %}{% if o %}
         <td class="num group-start">{{ o.coverage }}</td>
-        <td class="num">{{ o.wins }} <span class="muted small">({{ o.share }}%)</span></td>
+        <td class="num"><b>{{ o.share }}%</b> <span class="muted small">{{ o.wins }}{% if o.ties %} +{{ o.ties }} вничью{% endif %}</span></td>
         <td class="num">{% if o.avg %}${{ o.avg }}{% else %}—{% endif %}</td>
       {% else %}<td class="num group-start muted">—</td><td class="num muted">—</td><td class="num muted">—</td>{% endif %}{% endfor %}
     </tr>

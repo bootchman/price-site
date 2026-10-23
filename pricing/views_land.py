@@ -11,6 +11,18 @@ GROUP_ORDER = ["GA", "NJ", "TX", "CA", "FL", "IN", "IL", "VA", "WA", "QC", "ON",
 DEFAULT_GROUPS = ["GA", "NJ", "TX", "CA"]
 
 
+def _percent_shares(points, total):
+    """Целые проценты, в сумме ровно 100 (метод наибольшего остатка)."""
+    if not total:
+        return [0] * len(points)
+    raw = [100 * p / total for p in points]
+    base = [int(x) for x in raw]
+    rest = 100 - sum(base)
+    for i in sorted(range(len(raw)), key=lambda i: raw[i] - base[i], reverse=True)[:rest]:
+        base[i] += 1
+    return base
+
+
 def land_compare(request):
     auctions = list(Auction.objects.filter(
         yards__rate__stage=Rate.LAND, yards__rate__price_list__status=PriceList.PUBLISHED).distinct())
@@ -65,7 +77,8 @@ def land_compare(request):
             columns.append({"group": g, "code": group_terms[g][0].code, "name": names, "ops": ops})
 
     rows, summary = [], []
-    stats = {c["group"]: {"compared": 0, "wins": defaultdict(int), "prices": defaultdict(list),
+    stats = {c["group"]: {"compared": 0, "wins": defaultdict(int), "ties": defaultdict(int),
+                          "points": defaultdict(float), "prices": defaultdict(list),
                           "coverage": defaultdict(int)} for c in columns}
     for yard in sorted(yards.values(), key=lambda y: (y.state, y.name)):
         row_cells = []
@@ -79,10 +92,16 @@ def land_compare(request):
             mx = max(present.values()) if len(present) >= 2 else None
             if mn is not None and mn != mx:
                 stats[g]["compared"] += 1
+                cheapest = [op for op, v in present.items() if v == mn]
                 for op, v in present.items():
                     stats[g]["prices"][op].append(v)
-                    if v == mn:
+                for op in cheapest:
+                    # Ничья делит площадку поровну — доли в сумме дают 100%
+                    stats[g]["points"][op] += 1 / len(cheapest)
+                    if len(cheapest) == 1:
                         stats[g]["wins"][op] += 1
+                    else:
+                        stats[g]["ties"][op] += 1
             for i, op in enumerate(c["ops"]):
                 v = values[op]
                 css = ""
@@ -95,15 +114,17 @@ def land_compare(request):
 
     for c in columns:
         st = stats[c["group"]]
+        shares = _percent_shares([st["points"][op] for op in c["ops"]], st["compared"])
         summary.append({
             "column": c, "compared": st["compared"],
             "ops": [{
                 "name": op,
                 "coverage": st["coverage"][op],
                 "wins": st["wins"][op],
-                "share": round(100 * st["wins"][op] / st["compared"]) if st["compared"] else 0,
+                "ties": st["ties"][op],
+                "share": share,
                 "avg": round(mean(st["prices"][op])) if st["prices"][op] else None,
-            } for op in c["ops"]],
+            } for op, share in zip(c["ops"], shares)],
         })
 
     # Общая сводка: строки — операторы, колонки — склады
