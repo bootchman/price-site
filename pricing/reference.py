@@ -63,7 +63,7 @@ US_STATES = {
     "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
     "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY", "Puerto Rico": "PR",
     "Alberta": "AB", "British Columbia": "BC", "Manitoba": "MB", "New Brunswick": "NB",
-    "Newfoundland and Labrador": "NL", "Nova Scotia": "NS", "Ontario": "ON", "Quebec": "QC", "Saskatchewan": "SK",
+    "Newfoundland and Labrador": "NL", "Newfoundland and Lab": "NL", "Nova Scotia": "NS", "Ontario": "ON", "Quebec": "QC", "Saskatchewan": "SK",
 }
 
 CANADA = {"AB", "BC", "MB", "NB", "NL", "NS", "ON", "QC", "SK", "PE", "YT", "NT", "NU"}
