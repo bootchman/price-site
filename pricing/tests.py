@@ -100,6 +100,7 @@ class ImportAndRouteTests(TestCase):
         self.assertEqual(totals[0], ("VS Brothers", "SAV", 950, True))
         self.assertIn(("Cargoloop", "SAV", 1000, False), totals)
         self.assertIn(("Cargoloop", "ELZ", 1450, False), totals)
+        self.assertEqual(len(totals), len({(t[0], t[1]) for t in totals}))  # одна строка на вариант суши
         self.assertEqual({r.to_terminal.code for r in land_only}, {"HOU", "LAX", "IND"})
 
     def test_sea_from_two_vs_files_not_duplicated(self):
@@ -157,6 +158,32 @@ class ImportAndRouteTests(TestCase):
         self.assertEqual(pl.stats.get("площадок найдено по городу"), 1)
         self.assertEqual(pl.stats.get("новых площадок"), 1)  # «MOBILE» ≠ «MOBILE SOUTH»
         self.assertEqual(Yard.objects.count(), 2)
+
+    def test_aml(self):
+        self.import_cargoloop()
+        sheet = TMP / "aml.json"
+        sheet.write_text(json.dumps([
+            ["Copart: порівняння"], ["", "", "Anna", "", "", "", "", "", "Давид"],
+            ["Штат", "Локація", "Порт", "Суша", "Море", "Послуги", "Разом", "Інші", "Порт", "Суша", "Море", "Послуги", "Разом"],
+            ["AL", "Mobile South", "GA", "475 $", "650 $", "25 $", "1\xa0150 $", "", "GA", "400 $", "500 $", "175 $", "1\xa0075 $"],
+            ["AL", "Cusseta", "", "", "", "", "", "", "GA", "", "500 $"],
+        ]), encoding="utf-8")
+        rates = TMP / "aml_rates.json"
+        rates.write_text(json.dumps([
+            ["Ставки"], [], ["Порт США", "Море — Anna", "Море — Давид (суша+море)"],
+            ["GA", "650 $", "500 $"], ["CA", "1\xa0075 $", "950 $"], [], ["Послуги — Anna", "25 $"], ["Послуги — AML", "175 $"],
+        ]), encoding="utf-8")
+        imp = providers.AMLImporter("t", str(sheet))
+        imp.load(str(sheet), str(rates), "Copart")
+        pl = imp.save()
+        self.assertEqual(pl.stats.get("нет цены суши"), 1)
+        land = Rate.objects.get(price_list=pl, stage="land", vehicle_type__code="sedan")
+        self.assertEqual((land.amount, land.to_terminal.code, land.yard.name_key), (Decimal("400"), "SAV", "MOBILE SOUTH"))
+        self.assertEqual(Rate.objects.get(price_list=pl, stage="sea", vehicle_type__code="sedan", from_terminal__code="LAX").amount, Decimal("950"))
+        self.assertEqual([(c.category, int(c.amount)) for c in pl.charges.all()], [("services", 175)])
+        full, _ = find_routes(Yard.objects.get(), VehicleType.objects.get(code="sedan"), DestinationPort.objects.get(code="KLJ"))
+        self.assertEqual(int(full[0].total), 900)  # суша AML 400 + море AML 500
+        self.assertTrue(full[0].same_provider)
 
     def test_shipper101(self):
         path = TMP / "s101.json"

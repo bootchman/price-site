@@ -40,16 +40,22 @@ def find_routes(yard, vehicle_type, port):
         if not seas:
             land_only.append(land)
             continue
-        for sea in seas:
-            option = RouteOption(land=land, sea=sea, total=land.amount + sea.amount)
-            option.same_provider = land.price_list.provider_id == sea.price_list.provider_id
-            if land.is_estimate:
-                option.notes.append(f"суша: {land.note or 'оценка'}")
-            if sea.is_estimate:
-                option.notes.append(f"море: {sea.note or 'оценка'}")
-            if land.to_terminal_id != sea.from_terminal_id:
-                option.notes.append(f"склад {land.to_terminal} ≈ {sea.from_terminal}")
-            full.append(option)
+        # Лучшее море для этой суши: дешевле; при равной цене — тот же оператор (пакет).
+        provider = land.price_list.provider_id
+        seas = sorted(seas, key=lambda s: (s.amount, s.price_list.provider_id != provider))
+        sea = seas[0]
+        option = RouteOption(land=land, sea=sea, total=land.amount + sea.amount)
+        option.same_provider = provider == sea.price_list.provider_id
+        if land.is_estimate:
+            option.notes.append(f"суша: {land.note or 'оценка'}")
+        if sea.is_estimate:
+            option.notes.append(f"море: {sea.note or 'оценка'}")
+        if land.to_terminal_id != sea.from_terminal_id:
+            option.notes.append(f"склад {land.to_terminal} ≈ {sea.from_terminal}")
+        others = [f"{s.price_list.provider.name} ${s.amount:.0f}" for s in seas[1:]]
+        if others:
+            option.notes.append("море также: " + ", ".join(others))
+        full.append(option)
     full.sort(key=lambda o: (o.total, not o.same_provider))
     land_only.sort(key=lambda r: r.amount)
     return full, land_only

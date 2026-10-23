@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.db import transaction
 
 from pricing.models import (
-    Auction, DestinationPort, PriceList, Provider, Rate, Terminal, VehicleType, Yard, YardAlias,
+    Auction, Charge, DestinationPort, PriceList, Provider, Rate, Terminal, VehicleType, Yard, YardAlias,
 )
 from pricing.reference import AUCTIONS, CANADA, DESTINATION_PORTS, TERMINALS, VEHICLE_TYPES, name_key, normalize_state
 
@@ -36,6 +36,7 @@ class Importer:
         self.vtypes = {v.code: v for v in VehicleType.objects.all()}
         self.auctions = {a.code.lower(): a for a in Auction.objects.all()}
         self.rates = []
+        self.charges = []
         self.counters = Counter()
         self.warnings = []
         self._yard_cache = {}
@@ -114,6 +115,12 @@ class Importer:
             is_estimate=estimate, note=note,
         ))
 
+    def charge(self, category, name, amount, unit="car", applies_to="все", currency="USD", note=""):
+        if amount is None:
+            return
+        self.charges.append(Charge(category=category, name=name, amount=Decimal(str(amount)), unit=unit,
+                                   applies_to=applies_to, currency=currency, note=note))
+
     @transaction.atomic
     def save(self, publish=True) -> PriceList:
         stats = dict(self.counters)
@@ -125,6 +132,12 @@ class Importer:
         for rate in self.rates:
             rate.price_list = price_list
         Rate.objects.bulk_create(self.rates, batch_size=2000)
+        for charge in self.charges:
+            charge.price_list = price_list
+        Charge.objects.bulk_create(self.charges)
+        if self.charges:
+            stats["статей расходов"] = len(self.charges)
+            PriceList.objects.filter(pk=price_list.pk).update(stats=stats)
         if publish:
             PriceList.objects.filter(
                 provider=self.provider, scope=price_list.scope, status=PriceList.PUBLISHED
@@ -140,7 +153,7 @@ def money(value):
         return None
     if isinstance(value, (int, float)):
         return float(value)
-    s = str(value).replace("$", "").replace(",", "").strip()
+    s = str(value).replace("$", "").replace(",", "").replace("\xa0", "").replace(" ", "").strip()
     if s in ("", "-", "—"):
         return None
     try:

@@ -219,3 +219,53 @@ class Shipper101Importer(Importer):
             self.land(yard, term, "sedan", price)
             # Цена одна на машину; для SUV малого/среднего берём ту же с пометкой «оценка»
             self.land(yard, term, "suv", price, estimate=True, note="как седан")
+
+
+# ----------------------------------------------------------------------------- AML (Google Таблица «Порівняння»)
+AML_PORTS = {"NJ": "ELZ", "GA": "SAV", "FL": "MIA", "TX": "HOU", "CA": "LAX", "WA": "SEA"}
+
+
+class AMLImporter(Importer):
+    """Лист Copart/IAAI: блок «Давид (прайс суша-море)» = AML (Порт, Суша, Море, Послуги, Разом).
+    Лист «Ставки»: море AML по портам и «Послуги — AML». Левый блок (Anna) — не оператор, не загружаем."""
+
+    provider_name = "AML"
+
+    def load(self, sheet_json: str, rates_json: str, auction: str):
+        self.meta["scope"] = auction.lower()
+        rows = json.loads(Path(sheet_json).read_text(encoding="utf-8"))
+        header_idx = next(i for i, r in enumerate(rows) if r[:2] == ["Штат", "Локація"])
+        header = rows[header_idx]
+        aml_from = next(i for i, h in enumerate(header) if i > 2 and h == "Порт" and i >= 8)
+        if header[aml_from:aml_from + 4] != ["Порт", "Суша", "Море", "Послуги"]:
+            self.warnings.append(f"Неожиданные колонки AML: {header[aml_from:aml_from + 5]}")
+        for row in rows[header_idx + 1:]:
+            row = list(row) + [""] * 16
+            state, loc = str(row[0]).strip(), str(row[1]).strip()
+            port, land = str(row[aml_from]).strip().upper(), money(row[aml_from + 1])
+            if not state or not loc:
+                continue
+            self.counters["строк прайса"] += 1
+            if land is None:
+                self.counters["нет цены суши"] += 1
+                continue
+            term = AML_PORTS.get(port)
+            if not term:
+                self.counters["неизвестный порт"] += 1
+                continue
+            yard = self.yard(auction, state, loc)
+            self.land(yard, term, "sedan", land)
+            self.land(yard, term, "suv", land, estimate=True, note="как седан")
+
+        rates = json.loads(Path(rates_json).read_text(encoding="utf-8"))
+        hdr = next((r for r in rates if r and r[0] == "Порт США"), [])
+        col = next((i for i, h in enumerate(hdr) if "Давид" in h or "AML" in h), None)
+        for r in rates:
+            r = list(r) + [""] * 4
+            if col and r[0] in AML_PORTS:
+                sea = money(r[col])
+                if sea is not None:
+                    self.sea(AML_PORTS[r[0]], "KLJ", "sedan", sea, note="лист «Ставки»")
+                    self.sea(AML_PORTS[r[0]], "KLJ", "suv", sea, estimate=True, note="как седан")
+            if str(r[0]).strip().lower() in ("послуги — aml", "послуги - aml"):
+                self.charge("services", "Послуги", money(r[1]), note="лист «Ставки»")

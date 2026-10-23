@@ -28,6 +28,7 @@ TERMINAL_ALIASES = {
     "los angeles, ca": "LAX", "los angeles": "LAX", "ca california": "LAX", "california": "LAX",
     "indianapolis, in": "IND", "indianapolis": "IND",
     "chicago": "CHI", "chicago, il": "CHI", "illinoise, il": "CHI", "illinois, il": "CHI",
+    "fl florida": "MIA", "florida": "MIA", "wa washington": "SEA",
     "norfolk": "ORF", "miami": "MIA", "seattle": "SEA", "honolulu": "HNL", "anchorage": "ANC",
     "montreal, qc": "MTL", "montreal": "MTL", "toronto": "YTO",
 }

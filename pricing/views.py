@@ -1,7 +1,7 @@
 from django.db.models import Count, Q
 from django.shortcuts import render
 
-from .models import Auction, DestinationPort, PriceList, Rate, VehicleType, Yard
+from .models import Auction, Charge, DestinationPort, PriceList, Rate, VehicleType, Yard
 from .reference import AUCTIONS
 from .routes import find_routes
 
@@ -37,7 +37,26 @@ def route(request):
         has_sea = Rate.objects.filter(
             stage=Rate.SEA, to_port=port, price_list__status=PriceList.PUBLISHED
         ).exists()
+    charges = []
+    provider_ids = {o.land.price_list.provider_id for o in full} | {o.sea.price_list.provider_id for o in full}
+    provider_ids |= {r.price_list.provider_id for r in land_only}
+    seen = set()
+    for c in Charge.objects.filter(price_list__status=PriceList.PUBLISHED, price_list__provider_id__in=provider_ids) \
+            .select_related("price_list__provider").order_by("category", "price_list__provider__name"):
+        key = (c.price_list.provider_id, c.category, c.name, c.amount, c.currency)
+        if key not in seen:
+            seen.add(key)
+            charges.append(c)
+    by_provider = {}
+    for c in charges:
+        sign = "€" if c.currency == "EUR" else "$"
+        by_provider.setdefault(c.price_list.provider_id, []).append(f"{c.get_category_display()} {sign}{c.amount:.0f}")
+    for o in full:
+        o.charges = sorted({
+            f"{o.land.price_list.provider.name}: {x}" for x in by_provider.get(o.land.price_list.provider_id, [])
+        } | {f"{o.sea.price_list.provider.name}: {x}" for x in by_provider.get(o.sea.price_list.provider_id, [])})
     return render(request, "pricing/route.html", {
+        "charges": charges,
         "auctions": auctions, "auction": auction, "yards": yards, "yard": yard,
         "vtypes": vtypes, "vtype": vtype, "ports": ports, "port": port,
         "full": full, "land_only": land_only, "has_sea": has_sea,

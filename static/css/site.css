@@ -45,3 +45,4 @@ table.data tr.best td { background: #ecfdf3; }
 .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 10px; background: #eef2ff; color: #3538cd; }
 .tag-ok { background: #ecfdf3; color: var(--ok); }
 @media (max-width: 640px) { .form-grid .wide { grid-column: span 1; } .nav { margin-left: 8px; gap: 10px; font-size: 14px; } }
+.tag-warn { background: #fffaeb; color: #b54708; }
