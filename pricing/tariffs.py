@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from .models import Charge, ExchangeRate, PriceList, Rate
 
-CATEGORIES = [Charge.SERVICES, Charge.MATERIAL, Charge.FORWARDING]  # входят в итог всегда
+CATEGORIES = [Charge.SERVICES, Charge.MATERIAL]  # входят в итог всегда; экспедирование к операторам не относится
 ALL_CATEGORIES = CATEGORIES + [Charge.HAZARD]  # hazardous fee — только для электро и гибридов
 FUEL_CHOICES = [("ice", "ДВС (бензин / дизель)"), ("hybrid", "Гибрид"), ("electric", "Электро")]
 CONTAINER_SLOTS = 4  # цена за машину = ¼ контейнера

@@ -257,7 +257,7 @@ class TariffTests(TestCase):
     def test_missing_charges_flagged(self):
         o = self.best("VS Brothers")
         self.assertEqual(int(o.total), 950)
-        self.assertEqual(set(o.missing), {"услуги", "material fee", "экспедирование"})
+        self.assertEqual(set(o.missing), {"услуги", "material fee"})
 
     def test_manual_sea_overrides_price(self):
         sav = Terminal.objects.get(code="SAV")
@@ -271,12 +271,12 @@ class TariffTests(TestCase):
 
     def test_full_cost_with_charges_and_eur(self):
         ExchangeRate.objects.create(date=date.today(), eur_usd=Decimal("1.10"), source="тест")
-        for cat, amount, cur in [("services", "25", "USD"), ("material_fee", "100", "USD"), ("forwarding", "200", "EUR")]:
+        for cat, amount, cur in [("services", "25", "USD"), ("material_fee", "200", "EUR")]:
             self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": cat, "amount": amount, "currency": cur,
                                                                  "unit": "car", "applies_on": "sea"})
         o = self.best("VS Brothers")
         self.assertEqual(o.missing, [])
-        self.assertEqual(int(o.total), 950 + 25 + 100 + 220)
+        self.assertEqual(int(o.total), 950 + 25 + 220)  # material fee €200 по курсу 1.10
 
     def test_container_charge_and_zero(self):
         self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "material_fee", "amount": "200",
@@ -285,7 +285,7 @@ class TariffTests(TestCase):
                                                              "currency": "USD", "unit": "car", "applies_on": "sea"})
         o = self.best("VS Brothers")
         self.assertEqual(int(o.total), 950 + 50)
-        self.assertEqual(o.missing, ["экспедирование"])
+        self.assertEqual(o.missing, [])  # экспедирование не учитывается
 
     def test_manual_charge_replaces_price_charge(self):
         pl = self.vs.price_lists.first()
@@ -366,7 +366,7 @@ class TariffTests(TestCase):
         self.assertEqual(cl.by_container, {})
 
     def test_hazardous_fee_only_for_electric_and_hybrid(self):
-        for cat in ("services", "material_fee", "forwarding"):
+        for cat in ("services", "material_fee"):
             self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": cat, "amount": "0", "currency": "USD",
                                                                  "unit": "car", "applies_on": "sea"})
         self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "hazardous", "amount": "125", "currency": "USD",

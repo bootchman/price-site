@@ -1,4 +1,4 @@
-"""Вкладка «Тарифы операторов»: море, услуги, material fee, экспедирование; ручной ввод главнее прайса."""
+"""Вкладка «Тарифы операторов»: море, услуги, material fee, hazardous fee; ручной ввод главнее прайса."""
 from datetime import date
 from decimal import Decimal, InvalidOperation
 

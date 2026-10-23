@@ -44,7 +44,7 @@
   <div><button class="btn">Сохранить море</button></div>
 </form>
 
-<h2 class="section">Услуги, material fee, экспедирование, hazardous fee</h2>
+<h2 class="section">Услуги, material fee, hazardous fee</h2>
 <div class="table-wrap"><table class="data">
   <thead><tr><th class="left">Статья</th><th class="left">Название</th><th>Сумма</th><th class="left">За</th><th class="left">Контейнер</th><th class="left">Когда начисляется</th><th class="left">Порт</th><th class="left">Тип</th><th class="left">Источник</th><th></th></tr></thead>
   <tbody>
@@ -86,10 +86,7 @@
 (function () {
   const cat = document.getElementById("category"), fuel = document.getElementById("fuel-field");
   function sync() { fuel.style.display = cat.value === "hazardous" ? "" : "none"; }
-  cat.addEventListener("change", function () {
-    document.getElementById("currency").value = this.value === "forwarding" ? "EUR" : "USD";
-    sync();
-  });
+  cat.addEventListener("change", sync);
   sync();
 })();
 </script>

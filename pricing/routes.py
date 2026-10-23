@@ -1,4 +1,4 @@
-"""Подбор маршрута: полная стоимость = суша + море + услуги + material fee + экспедирование."""
+"""Подбор маршрута: полная стоимость = суша + море + услуги + material fee (+ hazardous fee для электро/гибрида)."""
 from dataclasses import dataclass, field
 from decimal import Decimal
 

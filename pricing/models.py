@@ -2,7 +2,8 @@
 
 Любая цена любого прайса сводится к одной из двух записей:
 - Rate — тариф на сушу (площадка → склад в порту) или море (склад → порт получения);
-- Charge — статья расходов (услуги, material fee, экспедирование).
+- Charge — статья расходов оператора (услуги, material fee, hazardous fee).
+  Экспедирование к операторам не относится и в сравнении не участвует (решение Alex 23.10.2026).
 """
 from django.db import models
 
@@ -158,9 +159,8 @@ class Rate(models.Model):
 
 
 class Charge(models.Model):
-    SERVICES, MATERIAL, FORWARDING, HAZARD = "services", "material_fee", "forwarding", "hazardous"
-    CATEGORY_CHOICES = [(SERVICES, "услуги"), (MATERIAL, "material fee"), (FORWARDING, "экспедирование"),
-                        (HAZARD, "hazardous fee")]
+    SERVICES, MATERIAL, HAZARD = "services", "material_fee", "hazardous"
+    CATEGORY_CHOICES = [(SERVICES, "услуги"), (MATERIAL, "material fee"), (HAZARD, "hazardous fee")]
     FUEL_CHOICES = [("", "электро и гибрид"), ("electric", "только электро"), ("hybrid", "только гибрид")]
     UNIT_CHOICES = [("car", "за машину"), ("container", "за контейнер"), ("lot", "за партию"), ("fixed", "фиксированно")]
 
@@ -187,7 +187,7 @@ class Charge(models.Model):
 
 
 class ExchangeRate(models.Model):
-    """Курс EUR → USD для пересчёта экспедирования в итог маршрута."""
+    """Курс EUR → USD для пересчёта статей в EUR в итог маршрута."""
 
     date = models.DateField()
     eur_usd = models.DecimalField(max_digits=10, decimal_places=4)
