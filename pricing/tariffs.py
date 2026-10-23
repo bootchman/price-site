@@ -40,7 +40,14 @@ def effective_charges(provider_ids):
         grouped.setdefault((c.price_list.provider_id, c.category), {"manual": [], "price": []})[
             "manual" if c.price_list.is_manual else "price"].append(c)
     for (pid, cat), parts in grouped.items():
-        result.setdefault(pid, {})[cat] = parts["manual"] or parts["price"]
+        # Одна и та же статья может прийти из нескольких прайсов оператора (AML: Copart и IAAI) — считаем один раз
+        unique, seen = [], set()
+        for c in parts["manual"] or parts["price"]:
+            key = (c.name, c.amount, c.currency, c.unit, c.applies_on, c.to_port_id, c.vehicle_type_id)
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+        result.setdefault(pid, {})[cat] = unique
     return result
 
 

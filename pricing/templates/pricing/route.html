@@ -44,7 +44,7 @@
           <td>{{ forloop.counter }}</td>
           <td class="num"><b>${{ o.total|floatformat:0 }}</b><br><span class="muted small">суша + море ${{ o.base_total|floatformat:0 }}</span></td>
           <td>{{ o.land.price_list.provider.name }} <span class="num">${{ o.land.amount|floatformat:0 }}</span>{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
-          <td>{{ o.land.to_terminal.name }}</td>
+          <td><span class="term term-{{ o.land.to_terminal.code }}">{{ o.land.to_terminal.name }}</span></td>
           <td>{{ o.sea.price_list.provider.name }} <span class="num">${{ o.sea.amount|floatformat:0 }}</span>{% if o.same_provider %} <span class="tag tag-ok">один оператор</span>{% endif %}</td>
           <td class="small">{% for e in o.extras %}<span class="tag {% if e.manual %}tag-warn{% endif %}">{{ e.provider }}: {{ e.label }}</span> {% endfor %}
             {% if o.missing %}<span class="tag tag-danger">нет данных: {{ o.missing|join:", " }}</span>{% endif %}</td>
@@ -65,7 +65,7 @@
     <div class="table-wrap"><table class="data">
       <thead><tr><th>Оператор</th><th>Склад</th><th>Суша</th><th></th></tr></thead>
       <tbody>{% for r in land_only %}
-        <tr><td>{{ r.price_list.provider.name }}</td><td>{{ r.to_terminal.name }}</td><td class="num">${{ r.amount|floatformat:0 }}</td>
+        <tr><td>{{ r.price_list.provider.name }}</td><td><span class="term term-{{ r.to_terminal.code }}">{{ r.to_terminal.name }}</span></td><td class="num">${{ r.amount|floatformat:0 }}</td>
         <td class="muted small">{% if r.is_preferred %}предпочт. склад{% endif %}{% if r.is_estimate %} {{ r.note }}{% endif %}</td></tr>
       {% endfor %}</tbody>
     </table></div>

@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType
-from .tariffs import CATEGORIES, CONTAINER_SLOTS, manual_list
+from .tariffs import CATEGORIES, CONTAINER_SLOTS, effective_charges, manual_list
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
 
@@ -29,13 +29,11 @@ def index(request):
     rows = []
     for p in providers:
         sea = Rate.objects.filter(price_list__provider=p, price_list__status=PriceList.PUBLISHED, stage=Rate.SEA)
-        charges = Charge.objects.filter(price_list__provider=p, price_list__status=PriceList.PUBLISHED)
+        eff = effective_charges([p.id]).get(p.id, {})
         cats = {}
         for cat in CATEGORIES:
-            items = list(charges.filter(category=cat).select_related("price_list"))
-            manual = [c for c in items if c.price_list.is_manual]
-            use = manual or items
-            cats[cat] = {"items": use, "manual": bool(manual)}
+            use = eff.get(cat, [])
+            cats[cat] = {"items": use, "manual": any(c.price_list.is_manual for c in use)}
         rows.append({
             "provider": p,
             "sea_ports": sorted({r.to_port.name for r in sea.select_related("to_port")}),

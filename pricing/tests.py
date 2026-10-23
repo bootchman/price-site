@@ -291,6 +291,12 @@ class TariffTests(TestCase):
                                                              "currency": "USD", "unit": "car", "applies_on": "sea"})
         self.assertEqual(int(self.best("VS Brothers").total), 950 + 60)
 
+    def test_same_charge_from_two_price_lists_counted_once(self):
+        for pl_title in ("a", "b"):
+            pl = PriceList.objects.create(provider=self.vs, title=pl_title, source="t", scope=pl_title, status=PriceList.PUBLISHED)
+            Charge.objects.create(price_list=pl, category="services", name="Послуги", amount=Decimal("175"))
+        self.assertEqual(int(self.best("VS Brothers").total), 950 + 175)
+
     def test_land_operator_charge(self):
         self.client.post(f"/tariffs/{self.cl.pk}/charge/", {"category": "services", "amount": "30",
                                                              "currency": "USD", "unit": "car", "applies_on": "land"})

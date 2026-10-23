@@ -11,7 +11,7 @@
   <tbody>
   {% for r in sea %}
     <tr>
-      <td>{{ r.from_terminal.name }}</td><td>{{ r.to_port.name }}</td><td>{{ r.vehicle_type.name }}</td>
+      <td><span class="term term-{{ r.from_terminal.code }}">{{ r.from_terminal.name }}</span></td><td>{{ r.to_port.name }}</td><td>{{ r.vehicle_type.name }}</td>
       <td class="num">${{ r.amount|floatformat:0 }}</td>
       <td>{% if r.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс: {{ r.price_list.title }}</span>{% endif %}</td>
       <td class="muted small">{{ r.note }}</td>

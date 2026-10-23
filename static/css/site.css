@@ -50,3 +50,38 @@ table.data tr.best td { background: #ecfdf3; }
 .row { display: flex; gap: 8px; }
 .row input { flex: 1; font: inherit; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; }
 tr.muted td { color: var(--muted); }
+
+/* --- Стиль таблиц как у Cargoloop: цвет склада, сетка, зебра --- */
+:root {
+  --t-SAV: #47d78d; --t-ELZ: #f9b65a; --t-NYC: #f9b65a; --t-HOU: #fb8948; --t-LAX: #5ca9fb;
+  --t-IND: #5d62cf; --t-MTL: #808080; --t-CHI: #9b6bd6; --t-ORF: #2bb5b0; --t-MIA: #e26fa8;
+  --t-SEA: #3f8fd2; --t-HNL: #c9a227; --t-ANC: #6b8e9e; --t-YTO: #a0a0a0;
+}
+body { font-family: Roboto, Arial, -apple-system, "Segoe UI", sans-serif; }
+table.data { font-size: 13px; }
+table.data th { text-align: center; font-weight: 600; color: var(--text); background: #fff; border-bottom: 1px solid #d0d5dd; }
+table.data td { border-right: 1px solid #e4e7eb; }
+table.data td:last-child { border-right: 0; }
+table.data tbody tr:nth-child(even) td { background: #f4f7f9; }
+table.data tbody tr.best td { background: #d9dde3; }
+table.data td.num, table.data td .num { text-align: center; }
+table.data td.num { text-align: center; }
+table.data th.term-head { border-bottom: 5px solid var(--c, #d0d5dd); }
+.term { display: inline-block; padding-left: 7px; border-left: 5px solid var(--c, #d0d5dd); line-height: 1.3; }
+.term-SAV { --c: var(--t-SAV); }
+.term-ELZ { --c: var(--t-ELZ); }
+.term-NYC { --c: var(--t-NYC); }
+.term-HOU { --c: var(--t-HOU); }
+.term-LAX { --c: var(--t-LAX); }
+.term-IND { --c: var(--t-IND); }
+.term-MTL { --c: var(--t-MTL); }
+.term-CHI { --c: var(--t-CHI); }
+.term-ORF { --c: var(--t-ORF); }
+.term-MIA { --c: var(--t-MIA); }
+.term-SEA { --c: var(--t-SEA); }
+.term-HNL { --c: var(--t-HNL); }
+.term-ANC { --c: var(--t-ANC); }
+.term-YTO { --c: var(--t-YTO); }
+.topbar { flex-wrap: wrap; }
+.nav { flex-wrap: wrap; }
+@media (max-width: 640px) { .topbar { gap: 6px 12px; } .nav { order: 3; width: 100%; margin: 0; } }
