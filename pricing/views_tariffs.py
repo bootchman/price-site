@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import CONTAINER_CHOICES, RATE_CONTAINER_CHOICES, Charge, DestinationPort, ExchangeRate, PriceList, Provider, Rate, TariffChange, Terminal, VehicleType
-from .tariffs import CATEGORIES, CONTAINER_SLOTS, effective_charges, manual_list
+from .tariffs import ALL_CATEGORIES, CONTAINER_SLOTS, effective_charges, manual_list
 
 CATEGORY_NAMES = dict(Charge.CATEGORY_CHOICES)
 CONTAINER_NAMES = dict(RATE_CONTAINER_CHOICES)
@@ -34,14 +34,14 @@ def index(request):
         sea = Rate.objects.filter(price_list__provider=p, price_list__status=PriceList.PUBLISHED, stage=Rate.SEA)
         eff = effective_charges([p.id]).get(p.id, {})
         cats = {}
-        for cat in CATEGORIES:
+        for cat in ALL_CATEGORIES:
             use = eff.get(cat, [])
             cats[cat] = {"items": use, "manual": any(c.price_list.is_manual for c in use)}
         rows.append({
             "provider": p,
             "sea_ports": sorted({r.to_port.name for r in sea.select_related("to_port")}),
             "sea_manual": sea.filter(price_list__is_manual=True).exists(),
-            "cats": [(CATEGORY_NAMES[c], cats[c]) for c in CATEGORIES],
+            "cats": [(CATEGORY_NAMES[c], cats[c]) for c in ALL_CATEGORIES],
         })
     return render(request, "pricing/tariffs.html", {"rows": rows, "eur": ExchangeRate.objects.first()})
 
@@ -83,7 +83,7 @@ def provider_page(request, pk):
         "charges": [(c, c.price_list.is_manual or c.category not in manual_cats) for c in charges],
         "terminals": sorted(Terminal.objects.all(), key=lambda t: (order.get(t.code, 99), t.name)), "ports": DestinationPort.objects.all(),
         "vtypes": VehicleType.objects.all(), "categories": Charge.CATEGORY_CHOICES,
-        "applies": Charge.APPLIES_ON_CHOICES, "history": provider.tariff_changes.select_related("user")[:30],
+        "applies": Charge.APPLIES_ON_CHOICES, "fuel_choices": Charge.FUEL_CHOICES, "history": provider.tariff_changes.select_related("user")[:30],
     })
 
 
@@ -145,11 +145,12 @@ def add_charge(request, pk):
     vtype = VehicleType.objects.filter(pk=request.POST.get("vehicle_type") or None).first()
     name = request.POST.get("name", "").strip()[:200] or CATEGORY_NAMES[category].capitalize()
     container = request.POST.get("container") if request.POST.get("container") in CONTAINER_NAMES else ""
+    fuel = request.POST.get("fuel") if category == Charge.HAZARD and request.POST.get("fuel") in ("electric", "hybrid") else ""
     pl = manual_list(provider)
     Charge.objects.filter(price_list=pl, category=category, name=name, to_port=port, vehicle_type=vtype,
-                          container=container).delete()
+                          container=container, fuel=fuel).delete()
     Charge.objects.create(price_list=pl, category=category, name=name, amount=amount, currency=currency, unit=unit,
-                          applies_on=applies_on, to_port=port, vehicle_type=vtype, container=container,
+                          applies_on=applies_on, to_port=port, vehicle_type=vtype, container=container, fuel=fuel,
                           applies_to=port.name if port else "все порты", note=request.POST.get("note", "").strip()[:200])
     sign = "€" if currency == "EUR" else "$"
     _log(request, provider, CATEGORY_NAMES[category],

@@ -41,7 +41,7 @@ def published(qs):
     )
 
 
-def _extras(option, charges, vehicle_type, port, eur):
+def _extras(option, charges, vehicle_type, port, eur, fuel="ice"):
     sea_pid = option.sea.price_list.provider_id
     land_pid = option.land.price_list.provider_id
     roles = [(sea_pid, {Charge.SEA_STAGE, Charge.ANY_STAGE})]
@@ -49,8 +49,9 @@ def _extras(option, charges, vehicle_type, port, eur):
         roles.append((land_pid, {Charge.LAND_STAGE, Charge.ANY_STAGE}))
     for pid, stages in roles:
         by_cat = charges.get(pid, {})
-        for cat in CATEGORIES:
-            items = applicable(by_cat.get(cat, []), vehicle_type, port, stages, option.sea.container)
+        cats = CATEGORIES + ([Charge.HAZARD] if fuel in ("electric", "hybrid") else [])
+        for cat in cats:
+            items = applicable(by_cat.get(cat, []), vehicle_type, port, stages, option.sea.container, fuel)
             if pid == sea_pid and not items:
                 option.missing.append(CATEGORY_NAMES[cat])
             for c in items:
@@ -67,7 +68,7 @@ def _extras(option, charges, vehicle_type, port, eur):
                                            c.price_list.is_manual))
 
 
-def find_routes(yard, vehicle_type, port):
+def find_routes(yard, vehicle_type, port, fuel="ice"):
     """Возвращает (варианты по возрастанию полной стоимости, суша без морской ставки до этого порта)."""
     land_rates = list(published(Rate.objects.filter(stage=Rate.LAND, yard=yard, vehicle_type=vehicle_type)))
     sea_by_group = {}
@@ -88,7 +89,7 @@ def find_routes(yard, vehicle_type, port):
         for sea in seas:
             option = RouteOption(land=land, sea=sea, base_total=land.amount + sea.amount)
             option.same_provider = land.price_list.provider_id == sea.price_list.provider_id
-            _extras(option, charges, vehicle_type, port, eur)
+            _extras(option, charges, vehicle_type, port, eur, fuel)
             option.total = option.base_total + sum((e.amount_usd for e in option.extras), Decimal(0))
             candidates.append(option)
         # Лучшее море для этой суши — по полной стоимости (оба контейнера); при равной — тот же оператор.

@@ -3,7 +3,9 @@ from decimal import Decimal
 
 from .models import Charge, ExchangeRate, PriceList, Rate
 
-CATEGORIES = [Charge.SERVICES, Charge.MATERIAL, Charge.FORWARDING]
+CATEGORIES = [Charge.SERVICES, Charge.MATERIAL, Charge.FORWARDING]  # входят в итог всегда
+ALL_CATEGORIES = CATEGORIES + [Charge.HAZARD]  # hazardous fee — только для электро и гибридов
+FUEL_CHOICES = [("ice", "ДВС (бензин / дизель)"), ("hybrid", "Гибрид"), ("electric", "Электро")]
 CONTAINER_SLOTS = 4  # цена за машину = ¼ контейнера
 
 
@@ -43,7 +45,7 @@ def effective_charges(provider_ids):
         # Одна и та же статья может прийти из нескольких прайсов оператора (AML: Copart и IAAI) — считаем один раз
         unique, seen = [], set()
         for c in parts["manual"] or parts["price"]:
-            key = (c.name, c.amount, c.currency, c.unit, c.applies_on, c.to_port_id, c.vehicle_type_id, c.container)
+            key = (c.name, c.amount, c.currency, c.unit, c.applies_on, c.to_port_id, c.vehicle_type_id, c.container, c.fuel)
             if key not in seen:
                 seen.add(key)
                 unique.append(c)
@@ -62,10 +64,14 @@ def per_car(charge) -> Decimal:
     return amount
 
 
-def applicable(charges, vehicle_type, port, stages, container="40HC"):
-    """Статьи одной категории, которые относятся к этой машине, порту, контейнеру и роли оператора."""
+def applicable(charges, vehicle_type, port, stages, container="40HC", fuel="ice"):
+    """Статьи одной категории, которые относятся к этой машине, порту, контейнеру, двигателю и роли оператора."""
     items = [c for c in charges if c.applies_on in stages and (c.to_port_id is None or c.to_port_id == port.id)
-             and (c.container in ("", container) or container == "ANY" and c.container == "")]
+             and (c.container in ("", container) or container == "ANY" and c.container == "")
+             and (c.category != Charge.HAZARD or c.fuel in ("", fuel))]
+    specific_fuel = [c for c in items if c.category == Charge.HAZARD and c.fuel == fuel]
+    if specific_fuel:  # «только электро» главнее «электро и гибрид»
+        items = specific_fuel
     specific_cont = [c for c in items if c.container == container]  # ставка для этого контейнера главнее общей
     if specific_cont:
         items = specific_cont

@@ -158,8 +158,10 @@ class Rate(models.Model):
 
 
 class Charge(models.Model):
-    SERVICES, MATERIAL, FORWARDING = "services", "material_fee", "forwarding"
-    CATEGORY_CHOICES = [(SERVICES, "услуги"), (MATERIAL, "material fee"), (FORWARDING, "экспедирование")]
+    SERVICES, MATERIAL, FORWARDING, HAZARD = "services", "material_fee", "forwarding", "hazardous"
+    CATEGORY_CHOICES = [(SERVICES, "услуги"), (MATERIAL, "material fee"), (FORWARDING, "экспедирование"),
+                        (HAZARD, "hazardous fee")]
+    FUEL_CHOICES = [("", "электро и гибрид"), ("electric", "только электро"), ("hybrid", "только гибрид")]
     UNIT_CHOICES = [("car", "за машину"), ("container", "за контейнер"), ("lot", "за партию"), ("fixed", "фиксированно")]
 
     SEA_STAGE, LAND_STAGE, ANY_STAGE = "sea", "land", "any"
@@ -174,6 +176,7 @@ class Charge(models.Model):
     applies_on = models.CharField(max_length=8, choices=APPLIES_ON_CHOICES, default=SEA_STAGE)
     to_port = models.ForeignKey(DestinationPort, null=True, blank=True, on_delete=models.CASCADE)
     container = models.CharField(max_length=5, choices=CONTAINER_CHOICES, blank=True, default="")  # пусто = любой
+    fuel = models.CharField(max_length=10, choices=FUEL_CHOICES, blank=True, default="")  # для hazardous fee
     name = models.CharField(max_length=200)
     applies_to = models.CharField(max_length=120, blank=True)  # порт / страна / «все»
     unit = models.CharField(max_length=12, choices=UNIT_CHOICES, default="car")

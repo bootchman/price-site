@@ -19,6 +19,9 @@
   <label>Тип машины
     <select name="vt">{% for v in vtypes %}<option value="{{ v.code }}" {% if v == vtype %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select>
   </label>
+  <label>Двигатель
+    <select name="fuel">{% for v, n in fuels %}<option value="{{ v }}" {% if v == fuel %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+  </label>
   <label>Порт получения
     <select name="port">{% for p in ports %}<option value="{{ p.code }}" {% if p == port %}selected{% endif %}>{{ p.name }} ({{ p.country }})</option>{% endfor %}</select>
   </label>
@@ -26,7 +29,7 @@
 </form>
 
 {% if yard %}
-  <h2 class="section">{{ yard.auction.code }} · {{ yard.state }} — {{ yard.name }} → {{ port.name }}, {{ vtype.name|lower }}</h2>
+  <h2 class="section">{{ yard.auction.code }} · {{ yard.state }} — {{ yard.name }} → {{ port.name }}, {{ vtype.name|lower }}{% if fuel != "ice" %}, {{ fuel_name|lower }}{% endif %}</h2>
   {% if full %}
     {% if incomplete %}
       <div class="notice notice-error">
@@ -35,7 +38,7 @@
         Заполните их во вкладке «Тарифы операторов» (0 — если оператор не берёт).
       </div>
     {% endif %}
-    <p class="muted small">Итого — полная стоимость за машину (лучший из контейнеров 40'HC и 45'HC, по 4 машины): суша + море + услуги + material fee + экспедирование{% if eur %} (EUR по курсу {{ eur.eur_usd }}){% endif %}. Цифры из прайсов и из вкладки «Тарифы операторов».</p>
+    <p class="muted small">Итого — полная стоимость за машину (лучший из контейнеров 40'HC и 45'HC, по 4 машины): суша + море + услуги + material fee + экспедирование{% if fuel != "ice" %} + hazardous fee{% endif %}{% if eur %} (EUR по курсу {{ eur.eur_usd }}){% endif %}. Цифры из прайсов и из вкладки «Тарифы операторов».</p>
     <div class="table-wrap"><table class="data">
       <thead><tr><th>#</th><th>Итого, за 1 машину</th><th class="left">Суша</th><th class="left">Склад</th><th class="left">Море</th><th>Контейнер</th><th class="left">Прочие расходы</th><th class="left">Примечания</th></tr></thead>
       <tbody>

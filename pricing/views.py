@@ -31,9 +31,11 @@ def route(request):
     vtype = next((v for v in vtypes if v.code == request.GET.get("vt")), vtypes[0] if vtypes else None)
     port = next((p for p in ports if p.code == request.GET.get("port")), ports[0] if ports else None)
 
+    from .tariffs import FUEL_CHOICES
+    fuel = request.GET.get("fuel") if request.GET.get("fuel") in dict(FUEL_CHOICES) else "ice"
     full, land_only, has_sea = [], [], False
     if yard and vtype and port:
-        full, land_only = find_routes(yard, vtype, port)
+        full, land_only = find_routes(yard, vtype, port, fuel)
         has_sea = Rate.objects.filter(
             stage=Rate.SEA, to_port=port, price_list__status=PriceList.PUBLISHED
         ).exists()
@@ -46,7 +48,7 @@ def route(request):
             incomplete.setdefault(p.pk, {"provider": p, "missing": set()})["missing"].update(o.missing)
     return render(request, "pricing/route.html", {
         "incomplete": [{"provider": v["provider"], "missing": sorted(v["missing"])} for v in incomplete.values()],
-        "eur": latest_eur_usd(),
+        "eur": latest_eur_usd(), "fuels": FUEL_CHOICES, "fuel": fuel, "fuel_name": dict(FUEL_CHOICES)[fuel],
         "auctions": auctions, "auction": auction, "yards": yards, "yard": yard,
         "vtypes": vtypes, "vtype": vtype, "ports": ports, "port": port,
         "full": full, "land_only": land_only, "has_sea": has_sea,

@@ -344,6 +344,29 @@ class TariffTests(TestCase):
         self.assertEqual((cl.sea.container, int(cl.total), cl.same_provider), ("ANY", 400 + 250, True))  # суша 500×0.8
         self.assertEqual(cl.by_container, {})
 
+    def test_hazardous_fee_only_for_electric_and_hybrid(self):
+        for cat in ("services", "material_fee", "forwarding"):
+            self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": cat, "amount": "0", "currency": "USD",
+                                                                 "unit": "car", "applies_on": "sea"})
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "hazardous", "amount": "125", "currency": "USD",
+                                                             "unit": "car", "applies_on": "sea"})
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/", {"category": "hazardous", "amount": "60", "currency": "USD",
+                                                             "unit": "car", "applies_on": "sea", "fuel": "hybrid",
+                                                             "name": "Hazard hybrid"})
+
+        def best(fuel):
+            full, _ = find_routes(self.yard, self.sedan, self.klj, fuel)
+            return [o for o in full if o.land.price_list.provider.name == "VS Brothers" and o.land.to_terminal.code == "SAV"][0]
+
+        self.assertEqual((int(best("ice").total), best("ice").missing), (950, []))
+        self.assertEqual(int(best("electric").total), 950 + 125)
+        self.assertEqual(int(best("hybrid").total), 950 + 60)  # «только гибрид» главнее общей
+
+    def test_hazardous_missing_flagged_for_ev(self):
+        full, _ = find_routes(self.yard, self.sedan, self.klj, "electric")
+        vs = [o for o in full if o.land.price_list.provider.name == "VS Brothers"][0]
+        self.assertIn("hazardous fee", vs.missing)
+
     def test_pages_render(self):
         TariffChange.objects.create(provider=self.vs, user=None, action="море", description="внесено системой")
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)

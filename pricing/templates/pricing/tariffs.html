@@ -2,7 +2,7 @@
 {% block title %}Тарифы операторов — InterAlex Price{% endblock %}
 {% block content %}
 <h1>Тарифы операторов</h1>
-<p class="muted">Море, услуги, material fee и экспедирование по каждому оператору. Значение, заданное здесь вручную, главнее прайса. Всё это входит в полную стоимость при подборе маршрута.</p>
+<p class="muted">Море, услуги, material fee, экспедирование и hazardous fee (электро/гибрид) по каждому оператору. Значение, заданное здесь вручную, главнее прайса. Всё это входит в полную стоимость при подборе маршрута.</p>
 
 <div class="table-wrap"><table class="data">
   <thead><tr><th class="left">Оператор</th><th class="left">Море (порты получения)</th>{% for r in rows|slice:":1" %}{% for name, c in r.cats %}<th>{{ name|capfirst }}</th>{% endfor %}{% endfor %}<th></th></tr></thead>

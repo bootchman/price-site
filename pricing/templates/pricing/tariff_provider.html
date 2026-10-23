@@ -44,13 +44,13 @@
   <div><button class="btn">Сохранить море</button></div>
 </form>
 
-<h2 class="section">Услуги, material fee, экспедирование</h2>
+<h2 class="section">Услуги, material fee, экспедирование, hazardous fee</h2>
 <div class="table-wrap"><table class="data">
   <thead><tr><th class="left">Статья</th><th class="left">Название</th><th>Сумма</th><th class="left">За</th><th class="left">Контейнер</th><th class="left">Когда начисляется</th><th class="left">Порт</th><th class="left">Тип</th><th class="left">Источник</th><th></th></tr></thead>
   <tbody>
   {% for c, active in charges %}
     <tr class="{% if not active %}muted{% endif %}">
-      <td class="label">{{ c.get_category_display|capfirst }}</td><td>{{ c.name }}</td>
+      <td class="label">{{ c.get_category_display|capfirst }}{% if c.category == "hazardous" %}<br><span class="muted small">{{ c.get_fuel_display }}</span>{% endif %}</td><td>{{ c.name }}</td>
       <td class="num">{% if c.currency == "EUR" %}€{% else %}${% endif %}{{ c.amount|floatformat:0 }}</td>
       <td>{{ c.get_unit_display }}</td><td>{{ c.get_container_display|default:"любой" }}</td><td class="small">{{ c.get_applies_on_display }}</td>
       <td>{{ c.to_port.name|default:"все" }}</td><td>{{ c.vehicle_type.name|default:"все" }}</td>
@@ -70,6 +70,7 @@
   <label>Порт получения<select name="port"><option value="">все порты</option>{% for p in ports %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></label>
   <label>Контейнер<select name="container"><option value="">любой</option>{% for v, n in containers %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
   <label>Тип машины<select name="vehicle_type"><option value="">все типы</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
+  <label id="fuel-field">Hazardous fee для<select name="fuel">{% for v, n in fuel_choices %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
   <label>Название<input name="name" placeholder="необязательно"></label>
   <label>Примечание<input name="note" placeholder="откуда цифра"></label>
   <div><button class="btn">Сохранить статью</button></div>
@@ -82,8 +83,14 @@
   {% empty %}<tr><td class="muted">Изменений пока не было.</td></tr>{% endfor %}</tbody>
 </table></div>
 <script>
-document.getElementById("category").addEventListener("change", function () {
-  document.getElementById("currency").value = this.value === "forwarding" ? "EUR" : "USD";
-});
+(function () {
+  const cat = document.getElementById("category"), fuel = document.getElementById("fuel-field");
+  function sync() { fuel.style.display = cat.value === "hazardous" ? "" : "none"; }
+  cat.addEventListener("change", function () {
+    document.getElementById("currency").value = this.value === "forwarding" ? "EUR" : "USD";
+    sync();
+  });
+  sync();
+})();
 </script>
 {% endblock %}
