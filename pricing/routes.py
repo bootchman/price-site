@@ -22,6 +22,7 @@ class Extra:
 class RouteOption:
     land: Rate
     sea: Rate = None
+    land_amount: Decimal = None  # суша с учётом коррекции оператора
     total: Decimal = None  # полная стоимость, USD
     base_total: Decimal = None  # суша + море
     extras: list = field(default_factory=list)
@@ -38,7 +39,7 @@ class RouteOption:
 def published(qs):
     return qs.filter(price_list__status=PriceList.PUBLISHED).select_related(
         "price_list__provider", "to_terminal", "from_terminal", "to_port", "vehicle_type"
-    )
+    )  # price_list__provider нужен и для коррекции суши
 
 
 def _extras(option, charges, vehicle_type, port, eur, fuel="ice"):
@@ -70,6 +71,16 @@ class LandOnly:
     """Суша оператора, для которой у него же нет моря до выбранного порта."""
     land: Rate
     reason: str
+    amount: Decimal = None  # с учётом коррекции
+
+
+def correction_note(land):
+    provider = land.price_list.provider
+    amount = provider.corrected_land(land.amount)
+    if amount == land.amount:
+        return amount, ""
+    sign = "+" if provider.land_correction > 0 else "−"
+    return amount, f"суша по прайсу ${land.amount:.0f}, коррекция {sign}${abs(provider.land_correction):.0f}"
 
 
 def find_routes(yard, vehicle_type, port, fuel="ice"):
@@ -92,11 +103,13 @@ def find_routes(yard, vehicle_type, port, fuel="ice"):
         seas = sea_by_key.get((pid, land.to_terminal.group), [])
         if not seas:
             reason = f"нет своего моря от склада {land.to_terminal}" if pid in sea_providers else f"нет своего моря до порта {port}"
-            land_only.append(LandOnly(land, reason))
+            land_only.append(LandOnly(land, reason, correction_note(land)[0]))
             continue
+        land_amount, corr = correction_note(land)
         candidates = []
         for sea in seas:
-            option = RouteOption(land=land, sea=sea, base_total=land.amount + sea.amount, same_provider=True)
+            option = RouteOption(land=land, sea=sea, land_amount=land_amount, base_total=land_amount + sea.amount,
+                                 same_provider=True)
             _extras(option, charges, vehicle_type, port, eur, fuel)
             option.total = option.base_total + sum((e.amount_usd for e in option.extras), Decimal(0))
             candidates.append(option)
@@ -107,6 +120,8 @@ def find_routes(yard, vehicle_type, port, fuel="ice"):
             for code, name in CONTAINER_CHOICES:
                 in_cont = [o for o in candidates if o.sea.container in (code, ANY_CONTAINER)]
                 best.by_container[name] = in_cont[0].total if in_cont else None
+        if corr:
+            best.notes.append(corr)
         if land.is_estimate:
             best.notes.append(f"суша: {land.note or 'оценка'}")
         if best.sea.is_estimate:
@@ -117,5 +132,5 @@ def find_routes(yard, vehicle_type, port, fuel="ice"):
             best.notes.append(f"склад {land.to_terminal} ≈ {best.sea.from_terminal}")
         full.append(best)
     full.sort(key=lambda o: (o.total, bool(o.missing)))
-    land_only.sort(key=lambda x: (x.land.price_list.provider.name, x.land.amount))
+    land_only.sort(key=lambda x: (x.land.price_list.provider.name, x.amount))
     return full, land_only

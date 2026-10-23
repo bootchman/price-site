@@ -57,11 +57,15 @@ def land_compare(request):
     # cell[(yard, group, оператор)] = минимальная цена (у оператора бывает несколько строк на площадку)
     cell, estimate, yards = {}, set(), {}
     ops_in_group = defaultdict(set)
+    corrected = set()
     for r in rates:
         g, op = r.to_terminal.group, r.price_list.provider.name
         key = (r.yard_id, g, op)
-        if key not in cell or r.amount < cell[key]:
-            cell[key] = r.amount
+        amount = r.price_list.provider.corrected_land(r.amount)
+        if amount != r.amount:
+            corrected.add(op)
+        if key not in cell or amount < cell[key]:
+            cell[key] = amount
             if r.is_estimate:
                 estimate.add(key)
             else:
@@ -141,5 +145,6 @@ def land_compare(request):
         "summary_rows": summary_rows,
         "auctions": auctions, "auction": auction, "vtypes": vtypes, "vtype": vtype,
         "groups_all": [(g, " / ".join(t.name.split(",")[0] for t in group_terms[g])) for g in groups_all],
+        "corrections": [p for p in providers if p.id in chosen_ops and p.land_correction_enabled and p.land_correction],
         "chosen": chosen, "providers": providers, "chosen_ops": chosen_ops, "states": states, "state": state, "columns": columns, "rows": rows, "summary": summary,
     })

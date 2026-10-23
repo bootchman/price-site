@@ -5,6 +5,14 @@
 <h1>{{ provider.name }}</h1>
 <p class="muted">Ручное значение заменяет значение из прайса с тем же ключом. Удалите ручное — снова будет действовать прайс.</p>
 
+<h2 class="section">Коррекция суши</h2>
+<form method="post" action="{% url 'tariff_correction' provider.pk %}" class="card form-grid">{% csrf_token %}
+  <label class="check" style="align-self:center"><input type="checkbox" name="enabled" id="corr-on" {% if provider.land_correction_enabled %}checked{% endif %}> Коррекция</label>
+  <label>Сумма, USD (−25 — вычесть, 25 — прибавить)<input name="value" id="corr-val" inputmode="decimal" value="{{ provider.land_correction|floatformat:'-2' }}"></label>
+  <div><button class="btn btn-outline">Сохранить коррекцию</button></div>
+  <p class="muted small wide" style="margin:0">Прибавляется к каждой цене суши этого оператора в «Подборе маршрута» и «Сравнении суши». Без галочки не учитывается. Цена не уходит ниже 0.</p>
+</form>
+
 <h2 class="section">Море — цена за 1 машину</h2>
 <div class="table-wrap"><table class="data">
   <thead><tr><th class="left">Контейнер</th><th class="left">Порт получения</th><th class="left">Тип машины</th>
@@ -84,6 +92,9 @@
 </table></div>
 <script>
 (function () {
+  const on = document.getElementById("corr-on"), val = document.getElementById("corr-val");
+  function syncCorr() { val.disabled = !on.checked; }
+  on.addEventListener("change", syncCorr); syncCorr();
   const cat = document.getElementById("category"), fuel = document.getElementById("fuel-field");
   function sync() { fuel.style.display = cat.value === "hazardous" ? "" : "none"; }
   cat.addEventListener("change", sync);

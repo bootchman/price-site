@@ -414,6 +414,24 @@ class TariffTests(TestCase):
         self.assertEqual(_percent_shares([10.5, 10.5, 24], 45), [23, 23, 54])
         self.assertEqual(sum(_percent_shares([1 / 3, 1 / 3, 1 / 3], 1)), 100)
 
+    def test_land_correction(self):
+        self.client.post(f"/tariffs/{self.vs.pk}/correction/", {"enabled": "on", "value": "-25"})
+        self.vs.refresh_from_db()
+        self.assertEqual((self.vs.land_correction_enabled, int(self.vs.land_correction)), (True, -25))
+        o = self.best("VS Brothers")
+        self.assertEqual((int(o.land_amount), int(o.total)), (425, 925))  # суша 450 − 25, море 500
+        self.assertIn("коррекция −$25", "; ".join(o.notes))
+        resp = self.client.get("/land/", {"auction": self.yard.auction_id, "vt": "sedan", "g": ["GA"]})
+        self.assertContains(resp, "$425")
+        # выключили — значение сохраняется, но не учитывается
+        self.client.post(f"/tariffs/{self.vs.pk}/correction/", {})
+        self.vs.refresh_from_db()
+        self.assertEqual((self.vs.land_correction_enabled, int(self.vs.land_correction)), (False, -25))
+        self.assertEqual(int(self.best("VS Brothers").total), 950)
+        self.assertEqual(self.vs.corrected_land(Decimal("10")), Decimal("10"))
+        self.vs.land_correction_enabled = True
+        self.assertEqual(self.vs.corrected_land(Decimal("10")), 0)  # не ниже нуля
+
     def test_pages_render(self):
         TariffChange.objects.create(provider=self.vs, user=None, action="море", description="внесено системой")
         self.assertEqual(self.client.get("/tariffs/").status_code, 200)

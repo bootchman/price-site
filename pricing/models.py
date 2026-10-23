@@ -97,6 +97,15 @@ class VehicleType(models.Model):
 class Provider(models.Model):
     name = models.CharField(max_length=100, unique=True)
     note = models.TextField(blank=True)
+    # Коррекция суши: прибавляется к каждой цене суши оператора (−25 = минус $25), если включена
+    land_correction_enabled = models.BooleanField(default=False)
+    land_correction = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+    def corrected_land(self, amount):
+        """Цена суши с учётом коррекции (не ниже 0)."""
+        if not self.land_correction_enabled or not self.land_correction:
+            return amount
+        return max(amount + self.land_correction, 0)
 
     class Meta:
         ordering = ["name"]

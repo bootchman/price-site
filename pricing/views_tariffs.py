@@ -206,6 +206,24 @@ def delete_manual(request, pk, kind, item_id):
 
 
 @require_POST
+def set_correction(request, pk):
+    provider = get_object_or_404(Provider, pk=pk)
+    enabled = request.POST.get("enabled") == "on"
+    raw = str(request.POST.get("value", "")).replace(",", ".").replace(" ", "").replace("$", "")
+    try:
+        value = Decimal(raw) if raw else provider.land_correction
+    except InvalidOperation:
+        messages.error(request, "Коррекция: укажите число, например -25 или 25.")
+        return redirect("tariff_provider", pk=pk)
+    provider.land_correction_enabled, provider.land_correction = enabled, value
+    provider.save(update_fields=["land_correction_enabled", "land_correction"])
+    sign = "+" if value > 0 else ""
+    _log(request, provider, "коррекция", f"Коррекция суши {'включена' if enabled else 'выключена'}: {sign}{value:.0f} $")
+    messages.success(request, "Коррекция суши сохранена.")
+    return redirect("tariff_provider", pk=pk)
+
+
+@require_POST
 def set_rate(request):
     value = _decimal(request.POST.get("eur_usd"))
     if value:

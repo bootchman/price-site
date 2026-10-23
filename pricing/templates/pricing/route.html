@@ -47,7 +47,7 @@
           <td class="num">{{ forloop.counter }}</td>
           <td class="num"><b>${{ o.total|floatformat:0 }}</b><br><span class="muted small">суша + море ${{ o.base_total|floatformat:0 }}</span></td>
           <td class="label">{{ o.land.price_list.provider.name }}</td>
-          <td><span class="num">${{ o.land.amount|floatformat:0 }}</span>{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
+          <td><span class="num">${{ o.land_amount|floatformat:0 }}</span>{% if o.land_amount != o.land.amount %} <span class="tag tag-warn" title="коррекция суши оператора">корр.</span>{% endif %}{% if o.land.is_preferred %} <span class="tag">предпочт.</span>{% endif %}</td>
           <td><span class="term term-{{ o.land.to_terminal.code }}">{{ o.land.to_terminal.name }}</span></td>
           <td><span class="num">${{ o.sea.amount|floatformat:0 }}</span></td>
           <td class="num"><b>{{ o.container }}</b><br><span class="muted small">{% if not o.by_container %}цена за единицу{% endif %}{% for name, total in o.by_container.items %}{{ name }}: {% if total %}${{ total|floatformat:0 }}{% else %}нет ставки{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
@@ -73,7 +73,7 @@
       <tbody>{% for x in land_only %}
         <tr><td class="label"><a href="{% url 'tariff_provider' x.land.price_list.provider.pk %}">{{ x.land.price_list.provider.name }}</a></td>
         <td><span class="term term-{{ x.land.to_terminal.code }}">{{ x.land.to_terminal.name }}</span></td>
-        <td class="num">${{ x.land.amount|floatformat:0 }}</td>
+        <td class="num">${{ x.amount|floatformat:0 }}{% if x.amount != x.land.amount %} <span class="tag tag-warn" title="по прайсу ${{ x.land.amount|floatformat:0 }}">корр.</span>{% endif %}</td>
         <td class="muted small">{{ x.reason }}{% if x.land.is_preferred %}; предпочт. склад{% endif %}{% if x.land.is_estimate %}; {{ x.land.note }}{% endif %}</td></tr>
       {% endfor %}</tbody>
     </table></div>

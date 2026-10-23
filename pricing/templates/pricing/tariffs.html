@@ -5,11 +5,12 @@
 <p class="muted">Море, услуги, material fee и hazardous fee (электро/гибрид) по каждому оператору. Значение, заданное здесь вручную, главнее прайса. Всё это входит в полную стоимость при подборе маршрута.</p>
 
 <div class="table-wrap"><table class="data">
-  <thead><tr><th class="left">Оператор</th><th class="left">Море (порты получения)</th>{% for r in rows|slice:":1" %}{% for name, c in r.cats %}<th>{{ name|capfirst }}</th>{% endfor %}{% endfor %}<th></th></tr></thead>
+  <thead><tr><th class="left">Оператор</th><th>Коррекция суши</th><th class="left">Море (порты получения)</th>{% for r in rows|slice:":1" %}{% for name, c in r.cats %}<th>{{ name|capfirst }}</th>{% endfor %}{% endfor %}<th></th></tr></thead>
   <tbody>
   {% for r in rows %}
     <tr>
       <td class="label"><a href="{% url 'tariff_provider' r.provider.pk %}">{{ r.provider.name }}</a></td>
+      <td class="num">{% if r.provider.land_correction_enabled and r.provider.land_correction %}<b>{% if r.provider.land_correction > 0 %}+{% endif %}{{ r.provider.land_correction|floatformat:0 }} $</b>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{% if r.sea_ports %}{{ r.sea_ports|join:", " }}{% if r.sea_manual %} <span class="tag tag-warn">есть ручные</span>{% endif %}{% else %}<span class="muted">нет данных</span>{% endif %}</td>
       {% for name, c in r.cats %}
         <td class="num">{% for i in c.items %}{% if i.currency == "EUR" %}€{% else %}${% endif %}{{ i.amount|floatformat:0 }}{% if i.unit == "container" %}/конт.{% endif %}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">нет данных</span>{% endfor %}
