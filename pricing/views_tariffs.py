@@ -23,6 +23,11 @@ def _decimal(value):
     return d if d >= 0 else None
 
 
+def _charge_key(c):
+    return (c.category, c.name, c.amount, c.currency, c.unit, c.applies_on, c.to_port_id, c.vehicle_type_id,
+            c.container, c.fuel)
+
+
 def _log(request, provider, action, description):
     TariffChange.objects.create(provider=provider, user=request.user, action=action, description=description[:300])
 
@@ -62,8 +67,19 @@ def provider_page(request, pk):
     overridden = set(from_price) & set(manual)
     effective = {**from_price, **manual}
     charges = Charge.objects.filter(price_list__in=published).select_related("price_list", "to_port", "vehicle_type") \
-        .order_by("category", "price_list__is_manual")
+        .order_by("category", "price_list__is_manual", "id")
     manual_cats = {c.category for c in charges if c.price_list.is_manual}
+    # Одинаковая статья из нескольких прайсов оператора (AML: Copart и IAAI) — одной строкой
+    unique, seen = [], {}
+    for c in charges:
+        key = (c.price_list.is_manual, *_charge_key(c))
+        if key in seen:
+            seen[key].sources.append(c.price_list.title)
+            continue
+        c.sources = [c.price_list.title]
+        seen[key] = c
+        unique.append(c)
+    charges = unique
     # Матрица как в прайсе Cargoloop: строки — порт получения и тип машины, колонки — склады
     order = {code: i for i, code in enumerate(TERMINAL_ORDER)}
     columns = sorted({r.from_terminal for r in effective.values()}, key=lambda t: (order.get(t.code, 99), t.name))
@@ -163,16 +179,29 @@ def add_charge(request, pk):
 
 @require_POST
 def delete_manual(request, pk, kind, item_id):
+    """Удалить ручное значение; статью расходов можно удалить и из прайса (вместе с её копиями в других прайсах)."""
     provider = get_object_or_404(Provider, pk=pk)
-    model = Rate if kind == "sea" else Charge
-    obj = get_object_or_404(model, pk=item_id, price_list__provider=provider, price_list__is_manual=True)
     if kind == "sea":
+        obj = get_object_or_404(Rate, pk=item_id, price_list__provider=provider, price_list__is_manual=True)
         desc = f"Удалено море {obj.get_container_display()} {obj.from_terminal} → {obj.to_port}, {obj.vehicle_type}: ${obj.amount:.0f}"
+        obj.delete()
+        messages.success(request, "Ручное значение удалено — снова действует значение из прайса (если есть).")
     else:
-        desc = f"Удалено: {obj.name} {obj.amount:.0f} {obj.currency}"
-    obj.delete()
+        obj = get_object_or_404(Charge, pk=item_id, price_list__provider=provider)
+        if obj.price_list.is_manual:
+            obj.delete()
+            desc = f"Удалено ручное: {obj.name} {obj.amount:.0f} {obj.currency}"
+            messages.success(request, "Ручное значение удалено — снова действует значение из прайса (если есть).")
+        else:
+            key = _charge_key(obj)
+            same = [c for c in Charge.objects.filter(price_list__provider=provider, price_list__is_manual=False,
+                                                     category=obj.category).select_related("price_list")
+                    if _charge_key(c) == key]
+            titles = ", ".join(sorted({c.price_list.title for c in same}))
+            Charge.objects.filter(pk__in=[c.pk for c in same]).delete()
+            desc = f"Удалено из прайса ({titles}): {obj.name} {obj.amount:.0f} {obj.currency}"
+            messages.success(request, "Статья удалена из прайса. При повторной загрузке этого прайса она появится снова.")
     _log(request, provider, "удаление", desc)
-    messages.success(request, "Ручное значение удалено — снова действует значение из прайса (если есть).")
     return redirect("tariff_provider", pk=pk)
 
 

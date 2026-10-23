@@ -297,6 +297,18 @@ class TariffTests(TestCase):
             Charge.objects.create(price_list=pl, category="services", name="Послуги", amount=Decimal("175"))
         self.assertEqual(int(self.best("VS Brothers").total), 950 + 175)
 
+    def test_duplicate_price_charges_shown_once_and_deletable(self):
+        ids = []
+        for t in ("Copart", "IAAI"):
+            pl = PriceList.objects.create(provider=self.vs, title=t, source="t", scope=t.lower(), status=PriceList.PUBLISHED)
+            ids.append(Charge.objects.create(price_list=pl, category="services", name="Послуги", amount=Decimal("175")).pk)
+        resp = self.client.get(f"/tariffs/{self.vs.pk}/")
+        self.assertEqual(resp.content.decode().count("Послуги</td>"), 1)
+        self.assertContains(resp, "прайс: Copart, IAAI")
+        self.client.post(f"/tariffs/{self.vs.pk}/charge/{ids[0]}/delete/")
+        self.assertFalse(Charge.objects.filter(pk__in=ids).exists())
+        self.assertIn("Удалено из прайса", self.vs.tariff_changes.first().description)
+
     def test_land_operator_charge(self):
         self.client.post(f"/tariffs/{self.cl.pk}/charge/", {"category": "services", "amount": "30",
                                                              "currency": "USD", "unit": "car", "applies_on": "land"})

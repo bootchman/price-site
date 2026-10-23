@@ -54,8 +54,8 @@
       <td class="num">{% if c.currency == "EUR" %}€{% else %}${% endif %}{{ c.amount|floatformat:0 }}</td>
       <td>{{ c.get_unit_display }}</td><td>{{ c.get_container_display|default:"любой" }}</td><td class="small">{{ c.get_applies_on_display }}</td>
       <td>{{ c.to_port.name|default:"все" }}</td><td>{{ c.vehicle_type.name|default:"все" }}</td>
-      <td>{% if c.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс</span>{% if not active %} <span class="small">заменено вручную</span>{% endif %}{% endif %}</td>
-      <td>{% if c.price_list.is_manual %}<form method="post" action="{% url 'tariff_delete' provider.pk 'charge' c.pk %}">{% csrf_token %}<button class="link">удалить</button></form>{% endif %}</td>
+      <td>{% if c.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс: {{ c.sources|join:", " }}</span>{% if not active %} <span class="small">заменено вручную</span>{% endif %}{% endif %}</td>
+      <td><form method="post" action="{% url 'tariff_delete' provider.pk 'charge' c.pk %}" {% if not c.price_list.is_manual %}onsubmit="return confirm('Удалить статью из прайса? При повторной загрузке прайса она появится снова.')"{% endif %}>{% csrf_token %}<button class="link">удалить</button></form></td>
     </tr>
   {% empty %}<tr><td colspan="10" class="muted">Статей расходов нет — в подборе маршрута у оператора будет пометка «нет данных».</td></tr>{% endfor %}
   </tbody>
