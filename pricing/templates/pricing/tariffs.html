@@ -23,17 +23,17 @@
 </table></div>
 
 <section class="grid">
-  <form method="post" action="{% url 'tariff_add_provider' %}" class="card">{% csrf_token %}
+  <form method="post" action="{% url 'tariff_add_provider' %}" class="card" autocomplete="off">{% csrf_token %}
     <h2>Добавить оператора</h2>
     <p class="muted small">Если у оператора ещё нет прайса, но известны его море или сборы.</p>
-    <div class="row"><input name="name" placeholder="Название, например «Shipper X»" required><button class="btn">Добавить</button></div>
+    <div class="row"><input name="name" aria-label="Название оператора" placeholder="Название, например «Shipper X»…" required><button class="btn">Добавить оператора</button></div>
   </form>
-  <form method="post" action="{% url 'tariff_set_rate' %}" class="card">{% csrf_token %}
+  <form method="post" action="{% url 'tariff_set_rate' %}" class="card" autocomplete="off">{% csrf_token %}
     <h2>Курс EUR → USD</h2>
     <p class="muted small">Для пересчёта статей расходов, заданных в EUR, в итог маршрута.
       {% if eur %}Сейчас: <b>{{ eur.eur_usd }}</b> ({{ eur.source }}, {{ eur.date|date:"d.m.Y" }}).{% else %}Курс ещё не задан.{% endif %}
       Обновляется по ЕЦБ каждый день.</p>
-    <div class="row"><input name="eur_usd" placeholder="например 1.08" required><button class="btn btn-outline">Задать вручную</button></div>
+    <div class="row"><input name="eur_usd" aria-label="Курс EUR → USD" inputmode="decimal" placeholder="например 1.08…" required><button class="btn btn-outline">Задать курс вручную</button></div>
   </form>
 </section>
 {% endblock %}

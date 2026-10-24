@@ -6,7 +6,7 @@
 <p class="muted">Ручное значение заменяет значение из прайса с тем же ключом. Удалите ручное — снова будет действовать прайс.</p>
 
 <h2 class="section">Коррекция суши</h2>
-<form method="post" action="{% url 'tariff_correction' provider.pk %}" class="card form-grid">{% csrf_token %}
+<form method="post" action="{% url 'tariff_correction' provider.pk %}" class="card form-grid" autocomplete="off">{% csrf_token %}
   <label class="check" style="align-self:center"><input type="checkbox" name="enabled" id="corr-on" {% if provider.land_correction_enabled %}checked{% endif %}> Коррекция</label>
   <label>Сумма, USD (−25 — вычесть, 25 — прибавить)<input name="value" id="corr-val" inputmode="decimal" value="{{ provider.land_correction|floatformat:'-2' }}"></label>
   <div><button class="btn btn-outline">Сохранить коррекцию</button></div>
@@ -36,19 +36,19 @@
     <tbody>{% for r in manual_sea %}
       <tr><td class="label">{{ r.get_container_display }}</td><td><span class="term term-{{ r.from_terminal.code }}">{{ r.from_terminal.name }}</span></td><td>{{ r.to_port.name }}</td><td>{{ r.vehicle_type.name }}</td>
       <td class="num">${{ r.amount|floatformat:0 }}</td><td class="muted small">{{ r.note }}</td>
-      <td><form method="post" action="{% url 'tariff_delete' provider.pk 'sea' r.pk %}">{% csrf_token %}<button class="link">удалить</button></form></td></tr>
+      <td><form method="post" action="{% url 'tariff_delete' provider.pk 'sea' r.pk %}" onsubmit="return confirm('Удалить ручную морскую ставку? Снова будет действовать цена из прайса, если она есть.')">{% csrf_token %}<button class="link">удалить</button></form></td></tr>
     {% endfor %}</tbody>
   </table></div>
 {% endif %}
 <h3 class="section">Задать море вручную</h3>
-<form method="post" action="{% url 'tariff_add_sea' provider.pk %}" class="card form-grid">{% csrf_token %}
+<form method="post" action="{% url 'tariff_add_sea' provider.pk %}" class="card form-grid" autocomplete="off">{% csrf_token %}
   <label>Контейнер<select name="container">{% for v, n in sea_containers %}<option value="{{ v }}">{{ n }}{% if v != "ANY" %} (4 машины){% else %} — цена за единицу{% endif %}</option>{% endfor %}</select></label>
   <label>Склад США<select name="terminal" required>{% for t in terminals %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}</select></label>
   <label>Порт получения<select name="port" required>{% for p in ports %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></label>
   <label>Тип машины<select name="vehicle_type"><option value="all">все легковые одинаково (седан, SUV, пикап)</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
   <label>Цена за<select name="unit"><option value="car">машину</option><option value="container">контейнер (÷ 4)</option></select></label>
-  <label>Сумма, USD<input name="amount" inputmode="decimal" required></label>
-  <label>Примечание<input name="note" placeholder="откуда цифра"></label>
+  <label>Сумма, USD<input name="amount" inputmode="decimal" required placeholder="например 550…"></label>
+  <label>Примечание<input name="note" placeholder="откуда цифра, например прайс 10.2026…"></label>
   <div><button class="btn">Сохранить море</button></div>
 </form>
 
@@ -63,15 +63,15 @@
       <td>{{ c.get_unit_display }}</td><td>{{ c.get_container_display|default:"любой" }}</td><td class="small">{{ c.get_applies_on_display }}</td>
       <td>{{ c.to_port.name|default:"все" }}</td><td>{{ c.vehicle_type.name|default:"все" }}</td>
       <td>{% if c.price_list.is_manual %}<span class="tag tag-warn">вручную</span>{% else %}<span class="tag">прайс: {{ c.sources|join:", " }}</span>{% if not active %} <span class="small">заменено вручную</span>{% endif %}{% endif %}</td>
-      <td><form method="post" action="{% url 'tariff_delete' provider.pk 'charge' c.pk %}" {% if not c.price_list.is_manual %}onsubmit="return confirm('Удалить статью из прайса? При повторной загрузке прайса она появится снова.')"{% endif %}>{% csrf_token %}<button class="link">удалить</button></form></td>
+      <td><form method="post" action="{% url 'tariff_delete' provider.pk 'charge' c.pk %}" onsubmit="return confirm({% if c.price_list.is_manual %}'Удалить ручное значение? Снова будет действовать значение из прайса, если оно есть.'{% else %}'Удалить статью из прайса? При повторной загрузке прайса она появится снова.'{% endif %})">{% csrf_token %}<button class="link">удалить</button></form></td>
     </tr>
   {% empty %}<tr><td colspan="10" class="muted">Статей расходов нет — в подборе маршрута у оператора будет пометка «нет данных».</td></tr>{% endfor %}
   </tbody>
 </table></div>
 <h3 class="section">Задать статью расходов вручную</h3>
-<form method="post" action="{% url 'tariff_add_charge' provider.pk %}" class="card form-grid">{% csrf_token %}
+<form method="post" action="{% url 'tariff_add_charge' provider.pk %}" class="card form-grid" autocomplete="off">{% csrf_token %}
   <label>Статья<select name="category" id="category">{% for v, n in categories %}<option value="{{ v }}">{{ n|capfirst }}</option>{% endfor %}</select></label>
-  <label>Сумма<input name="amount" inputmode="decimal" required placeholder="0 — не берёт"></label>
+  <label>Сумма<input name="amount" inputmode="decimal" required placeholder="например 175, 0 — не берёт…"></label>
   <label>Валюта<select name="currency" id="currency"><option value="USD">USD</option><option value="EUR">EUR</option></select></label>
   <label>За<select name="unit"><option value="car">машину</option><option value="container">контейнер (÷ 4)</option></select></label>
   <label>Когда начисляется<select name="applies_on">{% for v, n in applies %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
@@ -79,8 +79,8 @@
   <label>Контейнер<select name="container"><option value="">любой</option>{% for v, n in containers %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
   <label>Тип машины<select name="vehicle_type"><option value="">все типы</option>{% for v in vtypes %}<option value="{{ v.pk }}">{{ v.name }}</option>{% endfor %}</select></label>
   <label id="fuel-field">Hazardous fee для<select name="fuel">{% for v, n in fuel_choices %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></label>
-  <label>Название<input name="name" placeholder="необязательно"></label>
-  <label>Примечание<input name="note" placeholder="откуда цифра"></label>
+  <label>Название<input name="name" placeholder="необязательно, например Services fee…"></label>
+  <label>Примечание<input name="note" placeholder="откуда цифра, например прайс 10.2026…"></label>
   <div><button class="btn">Сохранить статью</button></div>
 </form>
 

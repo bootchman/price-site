@@ -4,20 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#ffffff">
   <title>{% block title %}InterAlex Price{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="{% static 'css/site.css' %}">
 </head>
 <body>
+  <a class="skip" href="#content">Перейти к содержимому</a>
   <header class="topbar">
     <a class="brand" href="/">InterAlex Price</a>
     {% if user.is_authenticated %}
-      <nav class="nav">
-        {% if request.access != "land" %}<a href="{% url 'home' %}" class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}">Подбор маршрута</a>{% endif %}
-        <a href="{% url 'land' %}" class="{% if request.resolver_match.url_name == 'land' %}active{% endif %}">Сравнение суши</a>
-        {% if request.access != "land" %}<a href="{% url 'tariffs' %}" class="{% if request.resolver_match.url_name and 'tariff' in request.resolver_match.url_name %}active{% endif %}">Тарифы операторов</a>
-        <a href="{% url 'operators' %}" class="{% if request.resolver_match.url_name == 'operators' %}active{% endif %}">Прайсы</a>{% endif %}
+      <nav class="nav" aria-label="Разделы">
+        {% if request.access != "land" %}<a href="{% url 'home' %}" {% if request.resolver_match.url_name == 'home' %}class="active" aria-current="page"{% endif %}>Подбор маршрута</a>{% endif %}
+        <a href="{% url 'land' %}" {% if request.resolver_match.url_name == 'land' %}class="active" aria-current="page"{% endif %}>Сравнение суши</a>
+        {% if request.access != "land" %}<a href="{% url 'tariffs' %}" {% if request.resolver_match.url_name and 'tariff' in request.resolver_match.url_name %}class="active" aria-current="page"{% endif %}>Тарифы операторов</a>
+        <a href="{% url 'operators' %}" {% if request.resolver_match.url_name == 'operators' %}class="active" aria-current="page"{% endif %}>Прайсы</a>{% endif %}
       </nav>
       <div class="who">
         <span>{{ user.telegram.full_name|default:user.username }}</span>
@@ -25,8 +28,8 @@
       </div>
     {% endif %}
   </header>
-  <main class="page">
-    {% for message in messages %}<div class="notice notice-{{ message.tags }}">{{ message }}</div>{% endfor %}
+  <main class="page" id="content" tabindex="-1">
+    {% for message in messages %}<div class="notice notice-{{ message.tags }}" role="{% if message.level_tag == 'error' %}alert{% else %}status{% endif %}">{{ message }}</div>{% endfor %}
     {% block content %}{% endblock %}
   </main>
 </body>

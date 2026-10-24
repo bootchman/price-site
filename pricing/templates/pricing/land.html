@@ -59,7 +59,7 @@
   </thead>
   <tbody>{% for r in rows %}
     <tr><td class="label left">{{ r.yard.state }} — {{ r.yard.name }}{% if r.yard.city %} <span class="muted small">({{ r.yard.city }})</span>{% endif %}</td>
-      {% for c in r.cells %}<td class="num {{ c.css }}">{% if c.value is not None %}${{ c.value|floatformat:0 }}{% if c.estimate %}<span class="muted" title="расчёт по коэффициенту">*</span>{% endif %}{% endif %}</td>{% endfor %}</tr>
+      {% for c in r.cells %}<td class="num {{ c.css }}"{% if c.css == "cell-min" %} title="самая дешёвая"{% elif c.css == "cell-max" %} title="самая дорогая"{% endif %}>{% if c.value is not None %}${{ c.value|floatformat:0 }}{% if c.estimate %}<span class="muted" title="расчёт по коэффициенту">*</span>{% endif %}{% if c.css == "cell-min" %}<span class="sr-only"> — самая дешёвая</span>{% elif c.css == "cell-max" %}<span class="sr-only"> — самая дорогая</span>{% endif %}{% endif %}</td>{% endfor %}</tr>
   {% endfor %}</tbody>
 </table></div>
 <p class="muted small">* — цена рассчитана по коэффициенту оператора к базовой (например, Cargoloop: пикап = база × 1.5).</p>

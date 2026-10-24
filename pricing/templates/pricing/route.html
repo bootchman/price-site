@@ -11,8 +11,8 @@
     </select>
   </label>
   <label class="wide">Площадка
-    <input type="search" id="yard-filter" placeholder="Поиск: штат, город или название" autocomplete="off">
-    <select name="yard" id="yard-select" size="6" required>
+    <input type="search" id="yard-filter" placeholder="Поиск, например GA или Atlanta…" autocomplete="off" spellcheck="false" aria-controls="yard-select">
+    <select name="yard" id="yard-select" size="6" required aria-label="Площадка">
       {% for y in yards %}<option value="{{ y.id }}" {% if y == yard %}selected{% endif %}>{{ y.state }} — {{ y.name }}{% if y.city %} ({{ y.city }}{% if y.zip %} {{ y.zip }}{% endif %}){% endif %}</option>{% endfor %}
     </select>
   </label>
@@ -89,6 +89,7 @@
     for (const opt of select.options) opt.hidden = q && !opt.text.toLowerCase().includes(q);
   });
   select.addEventListener("dblclick", () => select.form.submit());
+  select.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); select.form.requestSubmit(); } });
 })();
 </script>
 {% endblock %}

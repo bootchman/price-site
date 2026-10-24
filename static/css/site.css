@@ -11,10 +11,17 @@
   --t-SEA: #3f8fd2; --t-HNL: #c9a227; --t-ANC: #6b8e9e; --t-YTO: #a0a0a0;
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; color-scheme: light; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 Roboto, Arial, sans-serif; }
 a { color: var(--text); }
 a:hover { color: #000; }
+/* Фокус с клавиатуры виден везде; двойной тап не зумит кнопки и ссылки */
+a, button, input, select, textarea, label { touch-action: manipulation; -webkit-tap-highlight-color: rgba(0, 0, 0, .08); }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+.skip { position: absolute; left: 8px; top: -40px; z-index: 10; padding: 6px 10px; background: var(--accent); color: #fff; }
+.skip:focus { top: 8px; }
+main:focus { outline: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
 h2 { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
 h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
@@ -49,11 +56,12 @@ h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn-outline { background: #fff; color: var(--accent); }
 .btn-outline:hover { background: var(--zebra); }
-.link { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
+.link { background: none; border: 0; padding: 0; min-height: 24px; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
 .link:hover { color: var(--text); }
 input, select, textarea { font: inherit; color: var(--text); background: #fff; border: 1px solid var(--line-strong);
   padding: 6px 8px; border-radius: 0; }
-input:focus, select:focus { outline: 2px solid #9ec5fe; outline-offset: -1px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid #9ec5fe; outline-offset: -1px; }
+input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 12px; align-items: end; margin-top: 10px; }
 .form-grid label { display: flex; flex-direction: column; gap: 3px; font-weight: 700; font-size: 12px; }
 .form-grid .wide { grid-column: span 2; }
@@ -97,6 +105,8 @@ table.data th.term-head { border-bottom: 6px solid var(--c, var(--line-strong));
   .nav { order: 3; width: 100%; }
   .form-grid .wide { grid-column: span 1; }
   .page { padding: 14px 12px 32px; }
+  /* iPhone не приближает страницу при касании поля, если шрифт ≥ 16px */
+  input, select, textarea { font-size: 16px; }
 }
 
 /* Сравнение суши */
@@ -109,4 +119,4 @@ table.land tbody tr td.label { background: var(--bg); }
 table.land tbody tr:nth-child(even) td.label { background: var(--zebra); }
 .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .checks-title { font-weight: 700; font-size: 12px; width: 100%; }
-.check { display: inline-flex; align-items: center; gap: 4px; font-weight: 400 !important; font-size: 13px !important; flex-direction: row !important; }
+.check { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; cursor: pointer; font-weight: 400 !important; font-size: 13px !important; flex-direction: row !important; }
