@@ -194,6 +194,31 @@ class ImportAndRouteTests(TestCase):
         self.assertEqual(pl.stats.get("новых площадок"), 1)  # «MOBILE» ≠ «MOBILE SOUTH»
         self.assertEqual(Yard.objects.count(), 2)
 
+    def test_aml_land_replaces_only_land(self):
+        from django.core.management import call_command
+        old = PriceList.objects.create(provider=Provider.objects.get_or_create(name="AML")[0], title="old", source="t",
+                                       scope="copart", status=PriceList.PUBLISHED)
+        self.import_cargoloop()
+        yard = Yard.objects.get()
+        sav = Terminal.objects.get(code="SAV")
+        sedan = VehicleType.objects.get(code="sedan")
+        Rate.objects.create(price_list=old, stage="land", yard=yard, to_terminal=sav, vehicle_type=sedan, amount=Decimal("420"))
+        Rate.objects.create(price_list=old, stage="sea", from_terminal=sav, to_port=DestinationPort.objects.get(code="KLJ"),
+                            vehicle_type=sedan, amount=Decimal("500"))
+        Charge.objects.create(price_list=old, category="services", name="Послуги", amount=Decimal("175"))
+        path = TMP / "aml_land.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Аукціон", "Майданчик", "Порт відправки", "Суша ", "Закритий штат", "bid manager", "Море Клайпеда"])
+        ws.append(["Copart", "AL - Mobile South", "GA", 665, 100, 20, 500])
+        ws.append(["Додатково (ваша собівартість):", None, None, None])
+        wb.save(path)
+        call_command("import_prices", "aml-land", str(path), "--replace-land", stdout=open(TMP / "out.txt", "w"))
+        land = Rate.objects.filter(stage="land", price_list__provider__name="AML", vehicle_type=sedan)
+        self.assertEqual([(int(r.amount), r.to_terminal.code) for r in land], [(490, "SAV")])  # 665 − 175
+        self.assertTrue(Rate.objects.filter(price_list=old, stage="sea").exists())  # море осталось
+        self.assertTrue(Charge.objects.filter(price_list=old).exists())  # услуги остались
+
     def test_shipper101(self):
         path = TMP / "s101.json"
         path.write_text(json.dumps([

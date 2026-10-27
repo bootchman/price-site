@@ -272,3 +272,41 @@ class AMLImporter(Importer):
                     self.sea(AML_PORTS[r[0]], "KLJ", "suv", sea, estimate=True, note="как седан")
             if str(r[0]).strip().lower() in ("послуги — aml", "послуги - aml"):
                 self.charge("services", "Послуги", money(r[1]), note="лист «Ставки»")
+
+
+# ----------------------------------------------------------------------------- AML: прайс «собівартість» (суша)
+class AMLLandImporter(Importer):
+    """Excel «Прайс_собівартість»: Аукціон / Майданчик / Порт відправки / Суша / …
+    Суша в прайсе уже включает услуги AML — на сайт пишем «Суша» − AML_SERVICES_IN_LAND.
+    Остальные колонки (закрытый штат, bid manager, море, портовые) этим разборщиком не загружаются."""
+
+    provider_name = "AML"
+    SERVICES_IN_LAND = 175
+
+    def load(self, source: str):
+        import openpyxl
+
+        ws = openpyxl.load_workbook(source, read_only=True, data_only=True).active
+        rows = ws.iter_rows(values_only=True)
+        header = [str(h or "").strip().lower() for h in next(rows)]
+        col = {name: header.index(name) for name in ("аукціон", "майданчик", "порт відправки", "суша")}
+        for row in rows:
+            auction = str(row[col["аукціон"]] or "").strip()
+            land = money(row[col["суша"]])
+            loc = str(row[col["майданчик"]] or "").strip()
+            if not auction or land is None:
+                continue  # примечания в конце файла
+            self.counters["строк прайса"] += 1
+            m = re.match(r"^([A-Z]{2})\s*-\s*(.+)$", loc)
+            term = AML_PORTS.get(str(row[col["порт відправки"]] or "").strip().upper())
+            if not m or not term:
+                self.counters["не распознана площадка или порт"] += 1
+                continue
+            net = land - self.SERVICES_IN_LAND
+            if net < 0:
+                self.warnings.append(f"{auction} {loc}: суша ${land:.0f} меньше услуг ${self.SERVICES_IN_LAND}")
+                continue
+            yard = self.yard(auction, m.group(1), m.group(2).strip())
+            note = f"суша ${land:.0f} − услуги ${self.SERVICES_IN_LAND}"
+            self.land(yard, term, "sedan", net, note=note)
+            self.land(yard, term, "suv", net, estimate=True, note=note + ", SUV как седан")
