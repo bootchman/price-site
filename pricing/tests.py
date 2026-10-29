@@ -219,6 +219,41 @@ class ImportAndRouteTests(TestCase):
         self.assertTrue(Rate.objects.filter(price_list=old, stage="sea").exists())  # море осталось
         self.assertTrue(Charge.objects.filter(price_list=old).exists())  # услуги остались
 
+    def test_w8_yard_names(self):
+        f = providers.split_w8_yard
+        self.assertEqual(f("ABILENE - TX"), ("ABILENE", "TX"))
+        self.assertEqual(f("ANDREWS-TX"), ("ANDREWS", "TX"))
+        self.assertEqual(f("EARLINGTON – KY"), ("EARLINGTON", "KY"))
+        self.assertEqual(f("ATLANTA NORTH - GA (Jefferson GA Sublot)"), ("ATLANTA NORTH (Jefferson GA Sublot)", "GA"))
+        self.assertEqual(f("WEST WARREN (MA) (Stagecoach Sublot)"), ("WEST WARREN (Stagecoach Sublot)", "MA"))
+        self.assertEqual(f("AUSTIN - TX / WACO - TX (Taylor Sublot)"), ("AUSTIN / WACO (Taylor Sublot)", "TX"))
+        self.assertEqual(f("KANSAS CITY EAST"), ("KANSAS CITY EAST", ""))
+        self.assertEqual(f("MANHEIM BALTIMORE-WASHINGTON - M"), ("MANHEIM BALTIMORE-WASHINGTON - M", ""))
+
+    def test_w8_land(self):
+        self.import_cargoloop()  # MOBILE SOUTH (AL)
+        path = TMP / "w8.xlsx"
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        ws = wb.create_sheet("Суша аукціон → порт")
+        ws.append(["W8 Shipping — доставка"])
+        ws.append(["Джерело: …"])
+        ws.append(["Аукціон", "Площадка", "Тип ТЗ", "NY", "VA", "GA", "TX", "CA", "WA", "Мін. ціна", "Найдешевший порт"])
+        ws.append(["Copart", "MOBILE SOUTH - AL", "Легкове авто", None, None, 410, None, None, None, 410, "GA"])
+        ws.append(["Copart", "MOBILE SOUTH - AL", "Oversized Truck", None, None, 460, None, None, None, 460, "GA"])
+        ws.append(["Copart", "MOBILE SOUTH", "Мотоцикл", 300, None, None, None, None, None, 300, "NY"])
+        ws.append(["Copart", "NOWHERE CITY", "Мотоцикл", 300, None, None, None, None, None, 300, "NY"])
+        wb.save(path)
+        imp = providers.W8LandImporter("t", str(path))
+        imp.load(str(path))
+        pl = imp.save()
+        got = sorted((r.vehicle_type.code, r.to_terminal.code, int(r.amount), r.is_estimate) for r in pl.rates.all())
+        self.assertEqual(got, [("moto", "NYC", 300, False), ("pickup", "SAV", 460, False), ("sedan", "SAV", 410, False),
+                               ("suv", "SAV", 410, True), ("suv_big", "SAV", 460, True)])
+        self.assertEqual(pl.stats.get("площадка без штата, найдена по названию"), 1)
+        self.assertEqual(pl.stats.get("площадка без штата, не найдена"), 1)
+        self.assertEqual(Yard.objects.count(), 1)
+
     def test_shipper101(self):
         path = TMP / "s101.json"
         path.write_text(json.dumps([

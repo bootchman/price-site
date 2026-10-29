@@ -6,6 +6,7 @@
   python manage.py import_prices shipper101 copart.json --auction Copart
   python manage.py import_prices aml copart.json --rates stavki.json --auction Copart
   python manage.py import_prices aml-land Прайс_собівартість.xlsx --replace-land
+  python manage.py import_prices w8-land W8_Shipping_tarify_Klaipeda.xlsx
 """
 from datetime import date
 
@@ -18,7 +19,7 @@ class Command(BaseCommand):
     help = "Загрузить прайс оператора (cargoloop / atlantic / vs / shipper101)"
 
     def add_arguments(self, parser):
-        parser.add_argument("kind", choices=["cargoloop", "atlantic", "vs", "shipper101", "aml", "aml-land"])
+        parser.add_argument("kind", choices=["cargoloop", "atlantic", "vs", "shipper101", "aml", "aml-land", "w8-land"])
         parser.add_argument("source", nargs="?", default="")
         parser.add_argument("--title", default="")
         parser.add_argument("--valid-from", default="")
@@ -43,6 +44,9 @@ class Command(BaseCommand):
             if sea:
                 sea_map = {k.strip(): float(v) for k, v in (p.split("=") for p in sea.split(","))}
             imp = providers.VSCalculatorImporter(title or "Калькулятор", source, valid_from=vf, sea_sedan=sea_map)
+            imp.load(source)
+        elif kind == "w8-land":
+            imp = providers.W8LandImporter(title or "Towing charges", source, valid_from=vf)
             imp.load(source)
         elif kind == "aml-land":
             imp = providers.AMLLandImporter(title or "Прайс собівартість (суша)", source, scope="land", valid_from=vf)

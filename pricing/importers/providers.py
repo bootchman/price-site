@@ -310,3 +310,75 @@ class AMLLandImporter(Importer):
             note = f"суша ${land:.0f} − услуги ${self.SERVICES_IN_LAND}"
             self.land(yard, term, "sedan", net, note=note)
             self.land(yard, term, "suv", net, estimate=True, note=note + ", SUV как седан")
+
+
+# ----------------------------------------------------------------------------- W8 Shipping (кабинет dc.w8shipping.ua)
+W8_PORTS = {"NY": "NYC", "VA": "ORF", "GA": "SAV", "TX": "HOU", "CA": "LAX", "WA": "SEA"}
+# Тип ТЗ W8 → наши типы; вторые значения — оценка «как этот тип»
+W8_TYPES = {"легкове авто": [("sedan", False), ("suv", True)], "мотоцикл": [("moto", False)],
+            "oversized truck": [("pickup", False), ("suv_big", True)]}
+STATE_CODES = set(US_STATES.values())
+
+
+def split_w8_yard(raw: str):
+    """«ABILENE - TX», «ANDREWS-TX», «EARLINGTON – KY», «ATLANTA NORTH - GA (Jefferson GA Sublot)»,
+    «WEST WARREN (MA) (Stagecoach Sublot)» → (название, штат); без штата → (название, "")."""
+    n = re.sub(r"\s+", " ", str(raw or "").replace("–", "-").replace("—", "-")).strip()
+    for m in re.finditer(r"\s*-\s*([A-Z]{2})\b|\s*\(([A-Z]{2})\)", n):
+        st = m.group(1) or m.group(2)
+        if st in STATE_CODES:
+            rest = re.sub(r"\s*-\s*[A-Z]{2}\b", "", n[m.end():])  # «AUSTIN - TX / WACO - TX (…)»
+            return (n[:m.start()] + rest).strip(" -"), st
+    return n, ""
+
+
+class W8LandImporter(Importer):
+    """Лист «Суша аукціон → порт»: Аукціон / Площадка / Тип ТЗ / NY / VA / GA / TX / CA / WA / …
+    Пустая ячейка — в этот порт не возят."""
+
+    provider_name = "W8 Shipping"
+
+    def load(self, source: str):
+        import openpyxl
+
+        from pricing.models import Yard
+        from pricing.reference import name_key
+
+        wb = openpyxl.load_workbook(source, read_only=True, data_only=True)
+        ws = wb["Суша аукціон → порт"] if "Суша аукціон → порт" in wb.sheetnames else wb.worksheets[-1]
+        rows = ws.iter_rows(values_only=True)
+        header = None
+        for row in rows:
+            if row and str(row[0] or "").strip() == "Аукціон":
+                header = [str(h or "").strip() for h in row]
+                break
+        if not header:
+            raise ValueError("Не найдена строка заголовка «Аукціон / Площадка / Тип ТЗ / …»")
+        ports = {i: W8_PORTS[h] for i, h in enumerate(header) if h in W8_PORTS}
+        for row in rows:
+            auction, raw, vt = (str(row[i] or "").strip() for i in range(3))
+            if not auction:
+                continue
+            self.counters["строк прайса"] += 1
+            types = W8_TYPES.get(vt.lower())
+            if not types:
+                self.counters["неизвестный тип ТЗ"] += 1
+                continue
+            name, state = split_w8_yard(raw)
+            if state:
+                yard = self.yard(auction, state, name)
+            else:  # штата нет — ищем площадку аукциона с таким названием в справочнике (только однозначно)
+                found = list(Yard.objects.filter(auction__code__iexact=auction, name_key=name_key(name)))
+                yard = found[0] if len(found) == 1 else None
+                if yard is None:
+                    self.counters["площадка без штата, не найдена"] += 1
+                    self.warnings.append(f"{auction} «{raw}»: нет штата, площадка не найдена")
+                    continue
+                self.counters["площадка без штата, найдена по названию"] += 1
+            for i, term in ports.items():
+                price = money(row[i])
+                if price is None:
+                    continue
+                for code, estimate in types:
+                    self.land(yard, term, code, price, estimate=estimate,
+                              note=f"как «{vt}»" if estimate else "")
